@@ -2,123 +2,75 @@
 
 local Types = require(script.Parent.Parent.Types)
 
-type ComponentModule = Types.ComponentModule
-type ComponentMetadata = Types.ComponentMetadata
+type ComponentDefinition = Types.ComponentDefinition
 
 type LoadedComponent = {
-	Module: ComponentModule,
-	Metadata: ComponentMetadata,
-}
-
-type ComponentLoaderState = {
-	ComponentsFolder: Instance?,
-	LoadedComponents: { [string]: LoadedComponent },
-	DependencyGraph: { [string]: { string } },
-}
-
-local State: ComponentLoaderState = {
-	ComponentsFolder = nil,
-	LoadedComponents = {},
-	DependencyGraph = {},
+	Definition: ComponentDefinition,
+	Module: ModuleScript,
 }
 
 local ComponentLoader = {}
 
-local function ValidateComponentModule(_ModuleName: string, Module: any): (boolean, string?)
-	if type(Module) ~= "table" then
-		return false, "Module must return a table"
+local LoadedComponents: { [string]: LoadedComponent } = {}
+local DependencyGraph: { [string]: { string } } = {}
+
+function ComponentLoader.ValidateDefinition(ModuleName: string, Definition: any): (boolean, string?)
+	if not ModuleName then
+		return false, "Module must have a name"
 	end
 
-	if Module.ComponentName == nil then
-		return false, "Module missing 'ComponentName' field"
+	if type(Definition) ~= "table" then
+		return false, "Must return a table"
 	end
 
-	if type(Module.ComponentName) ~= "string" then
-		return false, "'ComponentName' must be a string"
+	if type(Definition.ComponentName) ~= "string" then
+		return false, "ComponentName must be a string"
 	end
 
-	if type(Module.new) ~= "function" then
-		return false, "Module missing 'new' constructor function"
+	if type(Definition.Create) ~= "function" then
+		return false, "Create must be a function"
 	end
 
-	if Module.Dependencies ~= nil and type(Module.Dependencies) ~= "table" then
-		return false, "'Dependencies' must be an array of strings"
+	if Definition.Dependencies ~= nil and type(Definition.Dependencies) ~= "table" then
+		return false, "Dependencies must be an array"
 	end
 
-	if Module.UpdateRate ~= nil and type(Module.UpdateRate) ~= "number" then
-		return false, "'UpdateRate' must be a number"
+	if Definition.UpdateRate ~= nil and type(Definition.UpdateRate) ~= "number" then
+		return false, "UpdateRate must be a number"
 	end
 
 	return true, nil
 end
 
-local function LoadSingleComponent(ModuleScript: ModuleScript): (LoadedComponent?, string?)
+function ComponentLoader.LoadComponent(ModuleScript: ModuleScript): (LoadedComponent?, string?)
 	local Success, Result = pcall(require, ModuleScript)
 	if not Success then
 		return nil, string.format("Failed to require: %s", tostring(Result))
 	end
 
-	local IsValid, ValidationError = ValidateComponentModule(ModuleScript.Name, Result)
+	local IsValid, ValidationError = ComponentLoader.ValidateDefinition(ModuleScript.Name, Result)
 	if not IsValid then
 		return nil, ValidationError
 	end
 
-	local Metadata: ComponentMetadata = {
-		ComponentName = Result.ComponentName,
-		Dependencies = Result.Dependencies,
-		UpdateRate = Result.UpdateRate,
-	}
-
 	return {
-		Module = Result,
-		Metadata = Metadata,
+		Definition = Result :: ComponentDefinition,
+		Module = ModuleScript,
 	}, nil
 end
 
-function ComponentLoader.Configure(ComponentsFolder: Instance)
-	State.ComponentsFolder = ComponentsFolder
-	table.clear(State.LoadedComponents)
-	table.clear(State.DependencyGraph)
-
-	for _, Child in ComponentsFolder:GetChildren() do
-		if not Child:IsA("ModuleScript") then
-			continue
-		end
-
-		local LoadedComponent, ErrorMessage = LoadSingleComponent(Child)
-		if not LoadedComponent then
-			error(string.format(Types.EngineName .. " Component '%s' failed to load: %s", Child.Name, ErrorMessage or "Unknown error"))
-		end
-
-		local ComponentName = LoadedComponent.Metadata.ComponentName
-		if State.LoadedComponents[ComponentName] then
-			error(string.format(Types.EngineName .. " Duplicate component name: '%s'", ComponentName))
-		end
-
-		State.LoadedComponents[ComponentName] = LoadedComponent
-		State.DependencyGraph[ComponentName] = LoadedComponent.Metadata.Dependencies or {}
-	end
-
-	ComponentLoader.ValidateDependencies()
-end
-
 function ComponentLoader.ValidateDependencies()
-	local CoreComponents = { "States", "Stats", "Modifiers", "Hooks" }
-	local AvailableComponents: { [string]: boolean } = {}
-
-	for _, CoreName in CoreComponents do
-		AvailableComponents[CoreName] = true
+	local Available: { [string]: boolean } = {}
+	for ComponentName in LoadedComponents do
+		Available[ComponentName] = true
 	end
 
-	for ComponentName in State.LoadedComponents do
-		AvailableComponents[ComponentName] = true
-	end
-
-	for ComponentName, Dependencies in State.DependencyGraph do
+	for ComponentName, Dependencies in DependencyGraph do
 		for _, Dependency in Dependencies do
-			if not AvailableComponents[Dependency] then
+			if not Available[Dependency] then
 				error(string.format(
-					"[Arch] Component '%s' depends on '%s', which does not exist",
+					"%s Component '%s' depends on '%s' which does not exist",
+					Types.EngineName,
 					ComponentName,
 					Dependency
 				))
@@ -126,7 +78,7 @@ function ComponentLoader.ValidateDependencies()
 		end
 	end
 
-	for ComponentName in State.LoadedComponents do
+	for ComponentName in LoadedComponents do
 		local Visited: { [string]: boolean } = {}
 		local Stack: { [string]: boolean } = {}
 
@@ -141,7 +93,7 @@ function ComponentLoader.ValidateDependencies()
 			Visited[Name] = true
 			Stack[Name] = true
 
-			local Dependencies = State.DependencyGraph[Name] or {}
+			local Dependencies = DependencyGraph[Name] or {}
 			for _, Dependency in pairs(Dependencies) do
 				if HasCycle(Dependency) then
 					return true
@@ -153,42 +105,68 @@ function ComponentLoader.ValidateDependencies()
 		end
 
 		if HasCycle(ComponentName) then
-			error(string.format(Types.EngineName .. " Circular dependency detected involving '%s'", ComponentName))
+			error(string.format("%s Circular dependency involving '%s'", Types.EngineName, ComponentName))
 		end
 	end
 end
 
-function ComponentLoader.GetComponent(ComponentName: string): LoadedComponent?
-	return State.LoadedComponents[ComponentName]
+function ComponentLoader.Configure(Folder: Instance)
+	table.clear(LoadedComponents)
+	table.clear(DependencyGraph)
+
+	for _, Child in Folder:GetChildren() do
+		if not Child:IsA("ModuleScript") then
+			continue
+		end
+
+		local Loaded, ErrorMessage = ComponentLoader.LoadComponent(Child)
+		if not Loaded then
+			error(string.format("%s Component '%s' failed: %s", Types.EngineName, Child.Name, ErrorMessage or "Unknown"))
+		end
+
+		local ComponentName = Loaded.Definition.ComponentName
+		if LoadedComponents[ComponentName] then
+			error(string.format("%s Duplicate component: '%s'", Types.EngineName, ComponentName))
+		end
+
+		LoadedComponents[ComponentName] = Loaded
+		DependencyGraph[ComponentName] = Loaded.Definition.Dependencies or {}
+	end
+
+	ComponentLoader.ValidateDependencies()
 end
 
-function ComponentLoader.HasComponent(ComponentName: string): boolean
-	return State.LoadedComponents[ComponentName] ~= nil
+function ComponentLoader.Get(ComponentName: string): LoadedComponent?
+	return LoadedComponents[ComponentName]
+end
+
+function ComponentLoader.Has(ComponentName: string): boolean
+	return LoadedComponents[ComponentName] ~= nil
 end
 
 function ComponentLoader.GetDependencies(ComponentName: string): { string }
-	return State.DependencyGraph[ComponentName] or {}
+	return DependencyGraph[ComponentName] or {}
 end
 
-function ComponentLoader.GetAllComponentNames(): { string }
+function ComponentLoader.GetAllNames(): { string }
 	local Names = {}
-	for Name in State.LoadedComponents do
+	for Name in LoadedComponents do
 		table.insert(Names, Name)
 	end
 	return Names
 end
 
-function ComponentLoader.GetComponentsWithUpdates(): { { Name: string, Rate: number } }
-	local Components = {}
-	for Name, Loaded in State.LoadedComponents do
-		if Loaded.Metadata.UpdateRate then
-			table.insert(Components, {
+function ComponentLoader.GetWithUpdates(): { { Name: string, Rate: number } }
+	local Result = {}
+	for Name, Loaded in pairs(LoadedComponents) do
+		if Loaded.Definition.UpdateRate then
+			table.insert(Result, {
 				Name = Name,
-				Rate = Loaded.Metadata.UpdateRate,
+				Rate = Loaded.Definition.UpdateRate,
 			})
 		end
 	end
-	return Components
+	return Result
 end
 
 function ComponentLoader.ResolveDependencyOrder(ComponentNames: { string }): { string }
@@ -197,19 +175,15 @@ function ComponentLoader.ResolveDependencyOrder(ComponentNames: { string }): { s
 	local Visiting: { [string]: boolean } = {}
 
 	local function Visit(Name: string)
-		if ResolvedSet[Name] then
-			return
-		end
-
-		if Visiting[Name] then
+		if ResolvedSet[Name] or Visiting[Name] then
 			return
 		end
 
 		Visiting[Name] = true
 
-		local Dependencies = State.DependencyGraph[Name] or {}
+		local Dependencies = DependencyGraph[Name] or {}
 		for _, Dependency in pairs(Dependencies) do
-			if State.LoadedComponents[Dependency] then
+			if LoadedComponents[Dependency] then
 				Visit(Dependency)
 			end
 		end
@@ -219,8 +193,8 @@ function ComponentLoader.ResolveDependencyOrder(ComponentNames: { string }): { s
 		table.insert(Resolved, Name)
 	end
 
-	for _, Name in ComponentNames do
-		if State.LoadedComponents[Name] then
+	for _, Name in pairs(ComponentNames) do
+		if LoadedComponents[Name] then
 			Visit(Name)
 		end
 	end

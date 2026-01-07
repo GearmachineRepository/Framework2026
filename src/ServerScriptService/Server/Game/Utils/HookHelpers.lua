@@ -1,14 +1,25 @@
 --!strict
+--[[
+	HookHelpers - Utility functions for writing hooks
 
-local Types = require(script.Parent.Parent.Types)
+	These helpers simplify common patterns like:
+	- Reacting to state changes
+	- Registering modifiers with auto-cleanup
+	- Health threshold triggers
+]]
 
-type Entity = Types.Entity
-type Connection = Types.Connection
+type Entity = any
+type Connection = { Disconnect: (any) -> () }
 
 local HookHelpers = {}
 
 function HookHelpers.OnStateEnter(Entity: Entity, StateName: string, Callback: () -> ()): () -> ()
-	local Connection = Entity.States:OnStateChanged(StateName, function(IsActive: boolean)
+	local States = Entity:GetComponent("States")
+	if not States then
+		return function() end
+	end
+
+	local Connection = States.OnStateChanged(StateName, function(IsActive: boolean)
 		if IsActive then
 			Callback()
 		end
@@ -20,7 +31,12 @@ function HookHelpers.OnStateEnter(Entity: Entity, StateName: string, Callback: (
 end
 
 function HookHelpers.OnStateExit(Entity: Entity, StateName: string, Callback: () -> ()): () -> ()
-	local Connection = Entity.States:OnStateChanged(StateName, function(IsActive: boolean)
+	local States = Entity:GetComponent("States")
+	if not States then
+		return function() end
+	end
+
+	local Connection = States.OnStateChanged(StateName, function(IsActive: boolean)
 		if not IsActive then
 			Callback()
 		end
@@ -32,7 +48,12 @@ function HookHelpers.OnStateExit(Entity: Entity, StateName: string, Callback: ()
 end
 
 function HookHelpers.WhileState(Entity: Entity, StateName: string, OnEnter: () -> (), OnExit: () -> ()): () -> ()
-	local Connection = Entity.States:OnStateChanged(StateName, function(IsActive: boolean)
+	local States = Entity:GetComponent("States")
+	if not States then
+		return function() end
+	end
+
+	local Connection = States.OnStateChanged(StateName, function(IsActive: boolean)
 		if IsActive then
 			OnEnter()
 		else
@@ -45,12 +66,13 @@ function HookHelpers.WhileState(Entity: Entity, StateName: string, OnEnter: () -
 	end
 end
 
-function HookHelpers.OnStatChanged(
-	Entity: Entity,
-	StatName: string,
-	Callback: (NewValue: number, OldValue: number) -> ()
-): () -> ()
-	local Connection = Entity.Stats:OnStatChanged(StatName, Callback)
+function HookHelpers.OnStatChanged(Entity: Entity, StatName: string, Callback: (NewValue: number, OldValue: number) -> ()): () -> ()
+	local Stats = Entity:GetComponent("Stats")
+	if not Stats then
+		return function() end
+	end
+
+	local Connection = Stats.OnStatChanged(StatName, Callback)
 
 	return function()
 		Connection:Disconnect()
@@ -58,10 +80,15 @@ function HookHelpers.OnStatChanged(
 end
 
 function HookHelpers.OnHealthBelow(Entity: Entity, Threshold: number, Callback: () -> ()): () -> ()
+	local Stats = Entity:GetComponent("Stats")
+	if not Stats then
+		return function() end
+	end
+
 	local HasTriggered = false
 
-	local Connection = Entity.Stats:OnStatChanged("Health", function(NewHealth: number)
-		local MaxHealth = Entity.Stats:GetStat("MaxHealth")
+	local Connection = Stats.OnStatChanged("Health", function(NewHealth: number)
+		local MaxHealth = Stats.GetStat("MaxHealth")
 		if MaxHealth <= 0 then
 			return
 		end
@@ -82,10 +109,15 @@ function HookHelpers.OnHealthBelow(Entity: Entity, Threshold: number, Callback: 
 end
 
 function HookHelpers.OnHealthAbove(Entity: Entity, Threshold: number, Callback: () -> ()): () -> ()
+	local Stats = Entity:GetComponent("Stats")
+	if not Stats then
+		return function() end
+	end
+
 	local HasTriggered = false
 
-	local Connection = Entity.Stats:OnStatChanged("Health", function(NewHealth: number)
-		local MaxHealth = Entity.Stats:GetStat("MaxHealth")
+	local Connection = Stats.OnStatChanged("Health", function(NewHealth: number)
+		local MaxHealth = Stats.GetStat("MaxHealth")
 		if MaxHealth <= 0 then
 			return
 		end
@@ -106,31 +138,56 @@ function HookHelpers.OnHealthAbove(Entity: Entity, Threshold: number, Callback: 
 end
 
 function HookHelpers.ModifyDamageDealt(Entity: Entity, Modifier: (Damage: number) -> number): () -> ()
-	return Entity.Modifiers:Register("Attack", 100, function(Damage: number)
+	local Modifiers = Entity:GetComponent("Modifiers")
+	if not Modifiers then
+		return function() end
+	end
+
+	return Modifiers.Register("DamageDealt", 100, function(Damage: number)
 		return Modifier(Damage)
 	end)
 end
 
 function HookHelpers.ModifyDamageTaken(Entity: Entity, Modifier: (Damage: number) -> number): () -> ()
-	return Entity.Modifiers:Register("Damage", 100, function(Damage: number)
+	local Modifiers = Entity:GetComponent("Modifiers")
+	if not Modifiers then
+		return function() end
+	end
+
+	return Modifiers.Register("Damage", 100, function(Damage: number)
 		return Modifier(Damage)
 	end)
 end
 
 function HookHelpers.ModifySpeed(Entity: Entity, Modifier: (Speed: number) -> number): () -> ()
-	return Entity.Modifiers:Register("Speed", 100, function(Speed: number)
+	local Modifiers = Entity:GetComponent("Modifiers")
+	if not Modifiers then
+		return function() end
+	end
+
+	return Modifiers.Register("WalkSpeed", 100, function(Speed: number)
 		return Modifier(Speed)
 	end)
 end
 
 function HookHelpers.ModifyStaminaCost(Entity: Entity, Modifier: (Cost: number) -> number): () -> ()
-	return Entity.Modifiers:Register("StaminaCost", 100, function(Cost: number)
+	local Modifiers = Entity:GetComponent("Modifiers")
+	if not Modifiers then
+		return function() end
+	end
+
+	return Modifiers.Register("StaminaCost", 100, function(Cost: number)
 		return Modifier(Cost)
 	end)
 end
 
 function HookHelpers.ModifyValue(Entity: Entity, ModifierType: string, Priority: number, Modifier: (Value: number) -> number): () -> ()
-	return Entity.Modifiers:Register(ModifierType, Priority, function(Value: number)
+	local Modifiers = Entity:GetComponent("Modifiers")
+	if not Modifiers then
+		return function() end
+	end
+
+	return Modifiers.Register(ModifierType, Priority, function(Value: number)
 		return Modifier(Value)
 	end)
 end
@@ -139,13 +196,9 @@ function HookHelpers.CombineCleanups(...: (() -> ())?): () -> ()
 	local Cleanups = { ... }
 
 	return function()
-		for _, Cleanup in pairs(Cleanups) do
+		for _, Cleanup in Cleanups do
 			if Cleanup then
-				local Success = pcall(Cleanup)
-				local ErrorMessage = if Success then nil else "Unknown error"
-				if not Success then
-					warn(string.format(Types.EngineName .. " Cleanup failed: %s", tostring(ErrorMessage)))
-				end
+				pcall(Cleanup)
 			end
 		end
 	end
@@ -183,8 +236,13 @@ function HookHelpers.Interval(Duration: number, Callback: () -> ()): () -> ()
 end
 
 function HookHelpers.GetHealthPercent(Entity: Entity): number
-	local Health = Entity.Stats:GetStat("Health")
-	local MaxHealth = Entity.Stats:GetStat("MaxHealth")
+	local Stats = Entity:GetComponent("Stats")
+	if not Stats then
+		return 0
+	end
+
+	local Health = Stats.GetStat("Health")
+	local MaxHealth = Stats.GetStat("MaxHealth")
 
 	if MaxHealth <= 0 then
 		return 0
@@ -194,8 +252,13 @@ function HookHelpers.GetHealthPercent(Entity: Entity): number
 end
 
 function HookHelpers.GetStaminaPercent(Entity: Entity): number
-	local Stamina = Entity.Stats:GetStat("Stamina")
-	local MaxStamina = Entity.Stats:GetStat("MaxStamina")
+	local Stats = Entity:GetComponent("Stats")
+	if not Stats then
+		return 0
+	end
+
+	local Stamina = Stats.GetStat("Stamina")
+	local MaxStamina = Stats.GetStat("MaxStamina")
 
 	if MaxStamina <= 0 then
 		return 0

@@ -2,133 +2,126 @@
 
 local RunService = game:GetService("RunService")
 
-local EventBus = require(script.Parent.Parent.Utilities.EventBus)
-local ComponentLoader = require(script.Parent.Parent.Core.ComponentLoader)
 local Types = require(script.Parent.Parent.Types)
 
+type Entity = Types.Entity
+
 type EntityUpdateData = {
-	Entity: Types.Entity,
-	ComponentAccumulators: { [string]: number },
-}
-
-type UpdateSystemState = {
-	Entities: { [Types.Entity]: EntityUpdateData },
-	ComponentUpdateRates: { [string]: number },
-	HeartbeatConnection: RBXScriptConnection?,
-	UpdateInterval: number,
-}
-
-local State: UpdateSystemState = {
-	Entities = {},
-	ComponentUpdateRates = {},
-	HeartbeatConnection = nil,
-	UpdateInterval = 1 / 30,
+	Entity: Entity,
+	Accumulators: { [string]: number },
 }
 
 local UpdateSystem = {}
 
-local function UpdateEntity(EntityData: EntityUpdateData, DeltaTime: number)
+local Entities: { [Entity]: EntityUpdateData } = {}
+local UpdateRates: { [string]: number } = {}
+local HeartbeatConnection: RBXScriptConnection? = nil
+local EventBusRef: any = nil
+
+function UpdateSystem.UpdateEntity(EntityData: EntityUpdateData, DeltaTime: number)
 	local EntityInstance = EntityData.Entity
 
 	if not EntityInstance.Character or not EntityInstance.Character.Parent then
 		return
 	end
 
-	for ComponentName, UpdateRate in State.ComponentUpdateRates do
+	for ComponentName, UpdateRate in UpdateRates do
 		local Component = EntityInstance:GetComponent(ComponentName)
 		if not Component then
 			continue
 		end
 
-		local ComponentTable = Component :: any
-		if not ComponentTable.Update then
+		if not Component.Update then
 			continue
 		end
 
-		local Accumulator = EntityData.ComponentAccumulators[ComponentName] or 0
-		Accumulator += DeltaTime
+		local Accumulator = EntityData.Accumulators[ComponentName] or 0
+		Accumulator = Accumulator + DeltaTime
 
 		if Accumulator >= UpdateRate then
-			local Success, ErrorMessage = pcall(ComponentTable.Update, ComponentTable, Accumulator)
+			local Success, ErrorMessage = pcall(Component.Update, Accumulator)
 			if not Success then
-				warn(string.format(Types.EngineName .. " Component '%s' update failed: %s", ComponentName, tostring(ErrorMessage)))
+				warn(string.format("%s Component '%s' update failed: %s", Types.EngineName, ComponentName, tostring(ErrorMessage)))
 			end
-			EntityData.ComponentAccumulators[ComponentName] = 0
+			EntityData.Accumulators[ComponentName] = 0
 		else
-			EntityData.ComponentAccumulators[ComponentName] = Accumulator
+			EntityData.Accumulators[ComponentName] = Accumulator
 		end
 	end
 end
 
-local function OnHeartbeat(DeltaTime: number)
-	for _, EntityData in pairs(State.Entities) do
-		UpdateEntity(EntityData, DeltaTime)
+function UpdateSystem.OnHeartbeat(DeltaTime: number)
+	for _, EntityData in Entities do
+		UpdateSystem.UpdateEntity(EntityData, DeltaTime)
 	end
 end
 
-function UpdateSystem.Configure()
-	local ComponentsWithUpdates = ComponentLoader.GetComponentsWithUpdates()
+function UpdateSystem.Configure(ComponentLoader: any, EventBus: any)
+	EventBusRef = EventBus
 
+	local ComponentsWithUpdates = ComponentLoader.GetWithUpdates()
 	for _, ComponentInfo in ComponentsWithUpdates do
-		State.ComponentUpdateRates[ComponentInfo.Name] = ComponentInfo.Rate
+		UpdateRates[ComponentInfo.Name] = ComponentInfo.Rate
 	end
 end
 
 function UpdateSystem.Start()
-	if State.HeartbeatConnection then
+	if HeartbeatConnection then
 		return
 	end
 
-	EventBus.Subscribe("EntityCreated", function(EventData)
-		local EntityInstance = EventData.Entity
-		if not EntityInstance then
-			return
-		end
+	if EventBusRef then
+		EventBusRef.Subscribe("EntityCreated", function(EventData: any)
+			local EntityInstance = EventData.Entity
+			if not EntityInstance then
+				return
+			end
 
-		State.Entities[EntityInstance] = {
-			Entity = EntityInstance,
-			ComponentAccumulators = {},
-		}
-	end)
+			Entities[EntityInstance] = {
+				Entity = EntityInstance,
+				Accumulators = {},
+			}
+		end)
 
-	EventBus.Subscribe("EntityDestroyed", function(EventData)
-		local EntityInstance = EventData.Entity
-		if not EntityInstance then
-			return
-		end
+		EventBusRef.Subscribe("EntityDestroyed", function(EventData: any)
+			local EntityInstance = EventData.Entity
+			if not EntityInstance then
+				return
+			end
 
-		local EntityData = State.Entities[EntityInstance]
-		if EntityData then
-			table.clear(EntityData.ComponentAccumulators)
-		end
+			local EntityData = Entities[EntityInstance]
+			if EntityData then
+				table.clear(EntityData.Accumulators)
+			end
 
-		State.Entities[EntityInstance] = nil
-	end)
+			Entities[EntityInstance] = nil
+		end)
+	end
 
-	State.HeartbeatConnection = RunService.Heartbeat:Connect(OnHeartbeat)
+	HeartbeatConnection = RunService.Heartbeat:Connect(UpdateSystem.OnHeartbeat)
 end
 
 function UpdateSystem.Stop()
-	if State.HeartbeatConnection then
-		State.HeartbeatConnection:Disconnect()
-		State.HeartbeatConnection = nil
+	if HeartbeatConnection then
+		HeartbeatConnection:Disconnect()
+		HeartbeatConnection = nil
 	end
 
-	table.clear(State.Entities)
+	table.clear(Entities)
 end
 
 function UpdateSystem.SetUpdateRate(ComponentName: string, Rate: number)
-	State.ComponentUpdateRates[ComponentName] = Rate
+	UpdateRates[ComponentName] = Rate
 end
 
 function UpdateSystem.GetUpdateRate(ComponentName: string): number?
-	return State.ComponentUpdateRates[ComponentName]
+	return UpdateRates[ComponentName]
 end
 
 function UpdateSystem.GetEntityCount(): number
 	local Count = 0
-	for _ in State.Entities do
-		Count += 1
+	for _ in Entities do
+		Count = Count + 1
 	end
 	return Count
 end
