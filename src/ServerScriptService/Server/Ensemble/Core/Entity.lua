@@ -5,84 +5,80 @@ local Types = require(script.Parent.Parent.Types)
 type Entity = Types.Entity
 type EntityContext = Types.EntityContext
 type Component = Types.Component
-type Maid = Types.Maid
 
 local Entity = {}
 
 local EntityRegistry: { [Model]: Entity } = {}
 
-function Entity.Create(Character: Model, Context: EntityContext, Maid: Maid): Entity
-	local Humanoid = Character:FindFirstChildOfClass("Humanoid")
-	if not Humanoid then
-		error(string.format("%s Character '%s' has no Humanoid", Types.EngineName, Character.Name))
-	end
+function Entity.Create(Character: Model, Context: EntityContext): Entity
+    local Humanoid = Character:FindFirstChildOfClass("Humanoid")
+    if not Humanoid then
+        error(string.format("%s Character '%s' has no Humanoid", Types.EngineName, Character.Name))
+    end
 
-	if EntityRegistry[Character] then
-		error(string.format("%s Entity already exists for '%s'", Types.EngineName, Character.Name))
-	end
+    if EntityRegistry[Character] then
+        error(string.format("%s Entity already exists for '%s'", Types.EngineName, Character.Name))
+    end
 
-	local Components: { [string]: Component } = {}
-	local Destroyed = false
+    local Components: { [string]: Component } = {}
+    local Destroyed = false
 
-	local NewEntity = {} :: Entity
+    local NewEntity = {} :: Entity
 
-	NewEntity.Character = Character
-	NewEntity.Humanoid = Humanoid
-	NewEntity.IsPlayer = Context.Player ~= nil
-	NewEntity.Player = Context.Player
-	NewEntity.Context = Context
+    NewEntity.Character = Character
+    NewEntity.Humanoid = Humanoid
+    NewEntity.IsPlayer = Context.Player ~= nil
+    NewEntity.Player = Context.Player
+    NewEntity.Context = Context
 
-	function NewEntity:GetComponent(ComponentName: string): any?
-		return Components[ComponentName]
-	end
+    function NewEntity:GetComponent(ComponentName: string): any?
+        return Components[ComponentName]
+    end
 
-	function NewEntity:HasComponent(ComponentName: string): boolean
-		return Components[ComponentName] ~= nil
-	end
+    function NewEntity:HasComponent(ComponentName: string): boolean
+        return Components[ComponentName] ~= nil
+    end
 
-	function NewEntity:AddComponent(ComponentName: string, ComponentInstance: Component)
-		if Components[ComponentName] then
-			warn(string.format("%s Component '%s' already exists", Types.EngineName, ComponentName))
-			return
-		end
+    function NewEntity:AddComponent(ComponentName: string, ComponentInstance: Component)
+        if Components[ComponentName] then
+            warn(string.format("%s Component '%s' already exists", Types.EngineName, ComponentName))
+            return
+        end
+        Components[ComponentName] = ComponentInstance
+    end
 
-		Components[ComponentName] = ComponentInstance
-		Maid:GiveTask(ComponentInstance)
-	end
+    function NewEntity:RemoveComponent(ComponentName: string)
+        local ComponentInstance = Components[ComponentName]
+        if not ComponentInstance then
+            return
+        end
+        Components[ComponentName] = nil
+        if ComponentInstance.Destroy then
+            ComponentInstance.Destroy()
+        end
+    end
 
-	function NewEntity:RemoveComponent(ComponentName: string)
-		local ComponentInstance = Components[ComponentName]
-		if not ComponentInstance then
-			return
-		end
+    function NewEntity:Destroy()
+        if Destroyed then
+            return
+        end
+        Destroyed = true
 
-		if ComponentInstance.Destroy then
-			ComponentInstance.Destroy()
-		end
+        for ComponentName, ComponentInstance in pairs(Components) do
+            if ComponentName and ComponentInstance.Destroy then
+                ComponentInstance.Destroy()
+            end
+        end
+        table.clear(Components)
 
-		Components[ComponentName] = nil
-	end
+        Character:SetAttribute("HasEntity", nil)
+        EntityRegistry[Character] = nil
+    end
 
-	function NewEntity:Destroy()
-		if Destroyed then
-			return
-		end
+    Character:SetAttribute("HasEntity", true)
+    EntityRegistry[Character] = NewEntity
 
-		Destroyed = true
-
-		if Character then
-			Character:SetAttribute("HasEntity", nil)
-			EntityRegistry[Character] = nil
-		end
-
-		Maid:DoCleaning()
-		table.clear(Components)
-	end
-
-	Character:SetAttribute("HasEntity", true)
-	EntityRegistry[Character] = NewEntity
-
-	return NewEntity
+    return NewEntity
 end
 
 function Entity.Get(Character: Model): Entity?

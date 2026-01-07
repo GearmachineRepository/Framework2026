@@ -1,8 +1,14 @@
 --!strict
 
+local ServerScriptService = game:GetService("ServerScriptService")
+
+local Types = require(ServerScriptService.Server.Ensemble.Types)
 local StateComponent = require(script.Parent.StateComponent)
 local StatComponent = require(script.Parent.StatComponent)
 local ModifierComponent = require(script.Parent.ModifierComponent)
+
+type Entity = Types.Entity
+type EntityContext = Types.EntityContext
 
 local DamageComponent = {}
 
@@ -11,12 +17,16 @@ DamageComponent.Dependencies = { "States", "Stats", "Modifiers" }
 
 type DamageInstance = {
 	TakeDamage: (Amount: number, Source: Player?, Direction: Vector3?) -> (),
-	DealDamage: (Target: any, BaseDamage: number) -> number,
+	DealDamage: (Target: Entity, BaseDamage: number) -> number,
 	IsInvulnerable: () -> boolean,
 	Destroy: () -> (),
 }
 
-function DamageComponent.Create(Entity: any, _Context: any): DamageInstance
+function DamageComponent.From(Entity: Entity): Type?
+	return Entity:GetComponent("Damage")
+end
+
+function DamageComponent.Create(Entity: Entity, _Context: EntityContext): DamageInstance
 	local States = StateComponent.From(Entity)
 	local Stats = StatComponent.From(Entity)
 	local Modifiers = ModifierComponent.From(Entity)
@@ -51,7 +61,7 @@ function DamageComponent.Create(Entity: any, _Context: any): DamageInstance
 		end
 	end
 
-	local function DealDamage(Target: any, BaseDamage: number): number
+	local function DealDamage(Target: Entity, BaseDamage: number): number
 		local FinalDamage = BaseDamage
 
 		if Modifiers then
@@ -60,7 +70,7 @@ function DamageComponent.Create(Entity: any, _Context: any): DamageInstance
 			})
 		end
 
-		local TargetDamage = Target:GetComponent("Damage")
+		local TargetDamage = DamageComponent.From(Target)
 		if TargetDamage then
 			TargetDamage.TakeDamage(FinalDamage, Entity.Player, nil)
 		end
@@ -80,9 +90,5 @@ function DamageComponent.Create(Entity: any, _Context: any): DamageInstance
 end
 
 export type Type = typeof(DamageComponent.Create(nil :: any, nil :: any))
-
-function DamageComponent.From(Entity: any): Type?
-	return Entity:GetComponent("Damage")
-end
 
 return DamageComponent

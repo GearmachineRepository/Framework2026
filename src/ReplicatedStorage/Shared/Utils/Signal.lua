@@ -1,8 +1,18 @@
 --!strict
 
-local Types = require(script.Parent.Parent.Types)
+export type Signal<T...> = {
+	Connect: (self: Signal<T...>, Callback: (T...) -> ()) -> Connection,
+	Once: (self: Signal<T...>, Callback: (T...) -> ()) -> Connection,
+	Fire: (self: Signal<T...>, T...) -> (),
+	Wait: (self: Signal<T...>) -> T...,
+	DisconnectAll: (self: Signal<T...>) -> (),
+	Destroy: (self: Signal<T...>) -> (),
+}
 
-type Connection = Types.Connection
+export type Connection = {
+	Disconnect: (self: Connection) -> (),
+	Connected: boolean,
+}
 
 type ConnectionInternal = Connection & {
 	Callback: ((...any) -> ())?,
@@ -54,7 +64,7 @@ function Connection.Disconnect(self: ConnectionInternal)
 	self.Signal = nil
 end
 
-function Signal.new<T...>(): Types.Signal<T...>
+function Signal.new<T...>(): Signal<T...>
 	local self: SignalInternal = setmetatable({
 		Connections = {},
 		YieldedThreads = {},

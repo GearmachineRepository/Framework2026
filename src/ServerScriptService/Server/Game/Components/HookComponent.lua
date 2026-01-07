@@ -1,5 +1,9 @@
 --!strict
 
+local ServerScriptService = game:GetService("ServerScriptService")
+local Server = ServerScriptService:WaitForChild("Server")
+local HookLoader = require(Server.Game.Utils.HookLoader)
+
 local HookComponent = {}
 
 HookComponent.ComponentName = "Hooks"
@@ -18,8 +22,11 @@ type ActiveHook = {
 	Cleanup: (() -> ())?,
 }
 
-function HookComponent.Create(Entity: any, Context: any): HookInstance
-	local HookLoader = Context.HookLoader
+function HookComponent.From(Entity: any): Type?
+	return Entity:GetComponent("Hooks")
+end
+
+function HookComponent.Create(Entity: any, _Context: any): HookInstance
 	local ActiveHooks: { [string]: ActiveHook } = {}
 
 	local function Register(HookName: string): boolean
@@ -27,20 +34,15 @@ function HookComponent.Create(Entity: any, Context: any): HookInstance
 			return false
 		end
 
-		if not HookLoader then
-			warn("[Ensemble] HookLoader not in Context")
-			return false
-		end
-
 		local Hook = HookLoader.Get(HookName)
 		if not Hook then
-			warn(string.format("[Ensemble] Hook not found: '%s'", HookName))
+			warn(string.format("[HookComponent] Hook not found: '%s'", HookName))
 			return false
 		end
 
 		local Success, CleanupOrError = pcall(Hook.OnActivate, Entity)
 		if not Success then
-			warn(string.format("[Ensemble] Hook '%s' activation failed: %s", HookName, tostring(CleanupOrError)))
+			warn(string.format("[HookComponent] Hook '%s' activation failed: %s", HookName, tostring(CleanupOrError)))
 			return false
 		end
 
@@ -64,7 +66,7 @@ function HookComponent.Create(Entity: any, Context: any): HookInstance
 			end)
 
 			if not Success then
-				warn(string.format("[Ensemble] Hook '%s' cleanup failed: %s", HookName, tostring(ErrorMessage)))
+				warn(string.format("[HookComponent] Hook '%s' cleanup failed: %s", HookName, tostring(ErrorMessage)))
 			end
 		end
 
@@ -76,7 +78,7 @@ function HookComponent.Create(Entity: any, Context: any): HookInstance
 				end)
 
 				if not Success then
-					warn(string.format("[Ensemble] Hook '%s' deactivation failed: %s", HookName, tostring(ErrorMessage)))
+					warn(string.format("[HookComponent] Hook '%s' deactivation failed: %s", HookName, tostring(ErrorMessage)))
 				end
 			end
 		end
@@ -113,9 +115,5 @@ function HookComponent.Create(Entity: any, Context: any): HookInstance
 end
 
 export type Type = typeof(HookComponent.Create(nil :: any, nil :: any))
-
-function HookComponent.From(Entity: any): Type?
-	return Entity:GetComponent("Hooks")
-end
 
 return HookComponent

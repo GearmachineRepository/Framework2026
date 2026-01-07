@@ -4,10 +4,29 @@ local Types = {}
 
 Types.EngineName = "[Ensemble]"
 
+export type StateConfig = {
+	[string]: {
+		Default: boolean?,
+		Replicate: boolean?,
+		Conflicts: { string }?,
+	},
+}
+
+export type StatConfig = {
+	[string]: {
+		Default: number,
+		Min: number?,
+		Max: number?,
+		Replicate: boolean?,
+	},
+}
+
 export type EntityContext = {
 	Player: Player?,
 	Data: { [string]: any }?,
-	[string]: any,
+	EventBus: any?,
+	StateConfig: StateConfig?,
+	StatConfig: StatConfig?,
 }
 
 export type Component = {
@@ -57,12 +76,6 @@ export type Signal<T...> = {
 	Wait: (self: Signal<T...>) -> T...,
 	DisconnectAll: (self: Signal<T...>) -> (),
 	Destroy: (self: Signal<T...>) -> (),
-}
-
-export type Maid = {
-	GiveTask: (self: Maid, Task: any) -> any,
-	DoCleaning: (self: Maid) -> (),
-	Destroy: (self: Maid) -> (),
 }
 
 return Types

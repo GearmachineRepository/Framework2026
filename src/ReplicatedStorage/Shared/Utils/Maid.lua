@@ -1,17 +1,22 @@
 --!strict
 
-local Types = require(script.Parent.Parent.Types)
+export type Destroyable = { Destroy: (self: any) -> () }
+export type Disconnectable = { Disconnect: (self: any) -> () }
+export type PromiseLike = { cancel: (self: any) -> (), getStatus: (self: any) -> string }
+export type CleanupTask = RBXScriptConnection | Instance | (() -> ()) | Destroyable | Disconnectable | PromiseLike
 
-type CleanupTask = Types.CleanupTask
-
-type MaidInternal = Types.Maid & {
+export type MaidSelf = {
 	Tasks: { [any]: CleanupTask },
+	GiveTask: (self: MaidSelf, Task: CleanupTask) -> CleanupTask,
+	Set: (self: MaidSelf, Name: string, Task: CleanupTask?) -> (),
+	CleanupItem: (self: MaidSelf, Task: CleanupTask) -> (),
+	DoCleaning: (self: MaidSelf) -> (),
 }
 
 local Maid = {}
 Maid.__index = Maid
 
-function Maid.new(): MaidInternal
+function Maid.new(): MaidSelf
 	return setmetatable({
 		Tasks = {},
 	}, Maid) :: any

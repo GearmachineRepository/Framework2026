@@ -10,7 +10,6 @@ local UpdateSystem = require(script.Systems.UpdateSystem)
 type InitConfig = {
 	Components: Instance,
 	Signal: () -> Types.Signal<any>,
-	Maid: () -> Types.Maid,
 	Archetypes: { [string]: { string } }?,
 }
 
@@ -31,14 +30,9 @@ function Ensemble.Init(Config: InitConfig)
 		error(Types.EngineName .. " Config.Signal is required")
 	end
 
-	if not Config.Maid then
-		error(Types.EngineName .. " Config.Maid is required")
-	end
-
 	EventBus.Configure(Config.Signal)
 	ComponentLoader.Configure(Config.Components)
 
-	EntityBuilder.SetMaidConstructor(Config.Maid)
 	EntityBuilder.SetEventBus(EventBus)
 
 	if Config.Archetypes then

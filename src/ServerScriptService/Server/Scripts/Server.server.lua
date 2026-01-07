@@ -8,10 +8,9 @@ local Server = ServerScriptService:WaitForChild("Server")
 local Shared = ReplicatedStorage:WaitForChild("Shared")
 
 local Ensemble = require(Server.Ensemble)
-local Signal = require(Shared.Utility.Signal)
-local Maid = require(Shared.Utility.Maid)
+local Signal = require(Shared.Utils.Signal)
+local Maid = require(Shared.Utils.Maid)
 local HookLoader = require(Server.Game.Utils.HookLoader)
-
 local HookComponent = require(Server.Game.Components.HookComponent)
 
 HookLoader.Configure(Server.Game.Hooks)
@@ -19,7 +18,6 @@ HookLoader.Configure(Server.Game.Hooks)
 Ensemble.Init({
 	Components = Server.Game.Components,
 	Signal = Signal.new,
-	Maid = Maid.new,
 	Archetypes = {
 		Player = { "States", "Stats", "Modifiers", "Hooks", "Damage" },
 		Enemy = { "States", "Stats", "Modifiers", "Damage" },
@@ -49,6 +47,10 @@ local function SpawnCharacter(Player: Player, PlayerData: any)
 		return
 	end
 
+	if Ensemble.GetEntity(Character) then
+		return
+	end
+
 	local Humanoid = Character:WaitForChild("Humanoid", 5) :: Humanoid?
 	if not Humanoid then
 		warn("No Humanoid for", Player.Name)
@@ -58,7 +60,6 @@ local function SpawnCharacter(Player: Player, PlayerData: any)
 	local Entity = Ensemble.CreateEntity(Character, {
 		Player = Player,
 		Data = PlayerData,
-		HookLoader = HookLoader,
 		EventBus = Ensemble.Events,
 		StateConfig = STATE_CONFIG,
 		StatConfig = STAT_CONFIG,
@@ -69,18 +70,6 @@ local function SpawnCharacter(Player: Player, PlayerData: any)
 	local Hooks = HookComponent.From(Entity)
 	if Hooks then
 		Hooks.Register("Regeneration")
-	end
-
-	local Died do
-		Died = Humanoid.Died:Once(function()
-			task.wait(3)
-			if Player.Parent then
-				SpawnCharacter(Player, PlayerData)
-				if Died then
-					Died:Disconnect()
-				end
-			end
-		end)
 	end
 end
 
@@ -94,7 +83,13 @@ Players.PlayerAdded:Connect(function(Player: Player)
 		SpawnCharacter(Player, PlayerData)
 	end)
 
-	SpawnCharacter(Player, PlayerData)
+	Player.CharacterRemoving:Connect(function(Character)
+		Ensemble.DestroyEntity(Character)
+	end)
+
+	if Player.Character then
+		SpawnCharacter(Player, PlayerData)
+	end
 end)
 
 Players.PlayerRemoving:Connect(function(Player: Player)

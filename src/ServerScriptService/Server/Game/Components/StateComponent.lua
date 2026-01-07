@@ -1,17 +1,17 @@
 --!strict
 
+local ServerScriptService = game:GetService("ServerScriptService")
+
+local Types = require(ServerScriptService.Server.Ensemble.Types)
+
+type StateConfig = Types.StateConfig
+type EntityContext = Types.EntityContext
+type Entity = Types.Entity
+
 local StateComponent = {}
 
 StateComponent.ComponentName = "States"
 StateComponent.Dependencies = {}
-
-type StateConfig = {
-	[string]: {
-		Default: boolean?,
-		Replicate: boolean?,
-		Conflicts: { string }?,
-	},
-}
 
 type StateInstance = {
 	GetState: (StateName: string) -> boolean,
@@ -29,7 +29,11 @@ type TimedStateData = {
 	Cancelled: boolean,
 }
 
-function StateComponent.Create(Entity: any, Context: any): StateInstance
+function StateComponent.From(Entity: Entity): Type?
+	return Entity:GetComponent("States")
+end
+
+function StateComponent.Create(Entity: Entity, Context: EntityContext): StateInstance
 	local Config: StateConfig = Context.StateConfig or {}
 	local CurrentStates: { [string]: boolean } = {}
 	local StateCallbacks: { [string]: { (Value: boolean) -> () } } = {}
@@ -166,9 +170,5 @@ function StateComponent.Create(Entity: any, Context: any): StateInstance
 end
 
 export type Type = typeof(StateComponent.Create(nil :: any, nil :: any))
-
-function StateComponent.From(Entity: any): Type?
-	return Entity:GetComponent("States")
-end
 
 return StateComponent

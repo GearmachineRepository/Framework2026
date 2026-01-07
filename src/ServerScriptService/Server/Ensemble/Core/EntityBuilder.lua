@@ -10,15 +10,10 @@ type EntityBuilder = Types.EntityBuilder
 local EntityBuilder = {}
 
 local ActiveArchetypes: { [string]: { string } }? = nil
-local MaidConstructor: (() -> Types.Maid)? = nil
 local EventBusRef: any = nil
 
 function EntityBuilder.SetArchetypes(Archetypes: { [string]: { string } }?)
 	ActiveArchetypes = Archetypes
-end
-
-function EntityBuilder.SetMaidConstructor(Constructor: () -> Types.Maid)
-	MaidConstructor = Constructor
 end
 
 function EntityBuilder.SetEventBus(EventBus: any)
@@ -26,12 +21,7 @@ function EntityBuilder.SetEventBus(EventBus: any)
 end
 
 function EntityBuilder.Create(Character: Model, Context: EntityContext?): EntityBuilder
-	if not MaidConstructor then
-		error(Types.EngineName .. " MaidConstructor not set")
-	end
-
-	local BuilderContext = Context or {}
-	local BuilderMaid = MaidConstructor()
+	local BuilderContext = Context or {} :: EntityContext
 	local ComponentsToAdd: { [string]: { any } } = {}
 	local ComponentsToExclude: { [string]: boolean } = {}
 
@@ -79,39 +69,39 @@ function EntityBuilder.Create(Character: Model, Context: EntityContext?): Entity
 		return self
 	end
 
-	function Builder:Build(): Types.Entity
-		local NewEntity = Entity.Create(Character, BuilderContext, BuilderMaid)
+    function Builder:Build(): Types.Entity
+        local NewEntity = Entity.Create(Character, BuilderContext)
 
-		local ComponentNames = {}
-		for ComponentName in ComponentsToAdd do
-			if not ComponentsToExclude[ComponentName] then
-				table.insert(ComponentNames, ComponentName)
-			end
-		end
+        local ComponentNames = {}
+        for ComponentName in ComponentsToAdd do
+            if not ComponentsToExclude[ComponentName] then
+                table.insert(ComponentNames, ComponentName)
+            end
+        end
 
-		local OrderedComponents = ComponentLoader.ResolveDependencyOrder(ComponentNames)
+        local OrderedComponents = ComponentLoader.ResolveDependencyOrder(ComponentNames)
 
-		for _, ComponentName in OrderedComponents do
-			local Loaded = ComponentLoader.Get(ComponentName)
-			if not Loaded then
-				continue
-			end
+        for _, ComponentName in OrderedComponents do
+            local Loaded = ComponentLoader.Get(ComponentName)
+            if not Loaded then
+                continue
+            end
 
-			local ComponentInstance = Loaded.Definition.Create(NewEntity, BuilderContext)
-			NewEntity:AddComponent(ComponentName, ComponentInstance)
-		end
+            local ComponentInstance = Loaded.Definition.Create(NewEntity, BuilderContext)
+            NewEntity:AddComponent(ComponentName, ComponentInstance)
+        end
 
-		if EventBusRef then
-			EventBusRef.Publish("EntityCreated", {
-				Entity = NewEntity,
-				Character = NewEntity.Character,
-				IsPlayer = NewEntity.IsPlayer,
-				Player = NewEntity.Player,
-			})
-		end
+        if EventBusRef then
+            EventBusRef.Publish("EntityCreated", {
+                Entity = NewEntity,
+                Character = NewEntity.Character,
+                IsPlayer = NewEntity.IsPlayer,
+                Player = NewEntity.Player,
+            })
+        end
 
-		return NewEntity
-	end
+        return NewEntity
+    end
 
 	return Builder
 end

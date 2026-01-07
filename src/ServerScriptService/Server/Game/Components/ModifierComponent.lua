@@ -21,6 +21,10 @@ type ModifierInstance = {
 	Destroy: () -> (),
 }
 
+function ModifierComponent.From(Entity: any): Type?
+	return Entity:GetComponent("Modifiers")
+end
+
 function ModifierComponent.Create(_Entity: any, _Context: any): ModifierInstance
 	local ModifiersByType: { [string]: { Modifier } } = {}
 
@@ -114,9 +118,5 @@ function ModifierComponent.Create(_Entity: any, _Context: any): ModifierInstance
 end
 
 export type Type = typeof(ModifierComponent.Create(nil :: any, nil :: any))
-
-function ModifierComponent.From(Entity: any): Type?
-	return Entity:GetComponent("Modifiers")
-end
 
 return ModifierComponent

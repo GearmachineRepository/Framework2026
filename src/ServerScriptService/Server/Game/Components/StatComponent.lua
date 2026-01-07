@@ -1,18 +1,17 @@
 --!strict
 
+local ServerScriptService = game:GetService("ServerScriptService")
+
+local Types = require(ServerScriptService.Server.Ensemble.Types)
+
+type StatConfig = Types.StatConfig
+type EntityContext = Types.EntityContext
+type Entity = Types.Entity
+
 local StatComponent = {}
 
 StatComponent.ComponentName = "Stats"
 StatComponent.Dependencies = {}
-
-type StatConfig = {
-	[string]: {
-		Default: number,
-		Min: number?,
-		Max: number?,
-		Replicate: boolean?,
-	},
-}
 
 type StatInstance = {
 	GetStat: (StatName: string) -> number,
@@ -25,7 +24,11 @@ type StatInstance = {
 
 local UPDATE_THRESHOLD = 0.001
 
-function StatComponent.Create(Entity: any, Context: any): StatInstance
+function StatComponent.From(Entity: Entity): Type?
+	return Entity:GetComponent("Stats")
+end
+
+function StatComponent.Create(Entity: Entity, Context: EntityContext): StatInstance
 	local Config: StatConfig = Context.StatConfig or {}
 	local CurrentStats: { [string]: number } = {}
 	local StatCallbacks: { [string]: { (NewValue: number, OldValue: number) -> () } } = {}
@@ -129,9 +132,5 @@ function StatComponent.Create(Entity: any, Context: any): StatInstance
 end
 
 export type Type = typeof(StatComponent.Create(nil :: any, nil :: any))
-
-function StatComponent.From(Entity: any): Type?
-	return Entity:GetComponent("Stats")
-end
 
 return StatComponent
