@@ -280,12 +280,12 @@ end
 function Timer.Debounce<Arguments..., Returns...>(Duration: number, Callback: (Arguments...) -> Returns...): (Arguments...) -> ()
 	local ScheduledThread: thread? = nil
 
-	return function(...: Arguments...)
+	return function(...)
 		if ScheduledThread then
 			task.cancel(ScheduledThread)
 		end
 
-		ScheduledThread = task.delay(Duration, function(...: Arguments...)
+		ScheduledThread = task.delay(Duration, function(...)
 			ScheduledThread = nil
 			Callback(...)
 		end, ...)
