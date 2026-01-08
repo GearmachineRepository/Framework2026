@@ -128,10 +128,10 @@ end
 	Wraps an existing RBXScriptSignal.
 
 	```lua
-	local signal = Signal.Wrap(workspace.ChildAdded)
-	signal:Connect(function(child)
-		print(child.Name)
-	end)
+		local signal = Signal.Wrap(workspace.ChildAdded)
+		signal:Connect(function(child)
+			print(child.Name)
+		end)
 	```
 ]=]
 function Signal.Wrap<T...>(RbxSignal: RBXScriptSignal): Signal<T...>

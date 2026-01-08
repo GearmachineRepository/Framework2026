@@ -20,13 +20,15 @@ local TableUtil = {}
 --[=[
 	Creates a copy of the table.
 	Pass `true` for deep copy.
+	Pass a third argument `true` to preserve metatables.
 
 	```lua
-	local copy = TableUtil.Copy(original)
-	local deepCopy = TableUtil.Copy(original, true)
+		local copy = TableUtil.Copy(original)
+		local deepCopy = TableUtil.Copy(original, true)
+		local withMeta = TableUtil.Copy(original, true, true)
 	```
 ]=]
-function TableUtil.Copy(Source: any, Deep: boolean?): any
+function TableUtil.Copy(Source: any, Deep: boolean?, PreserveMetatable: boolean?): any
 	if type(Source) ~= "table" then
 		return Source
 	end
@@ -35,10 +37,14 @@ function TableUtil.Copy(Source: any, Deep: boolean?): any
 
 	for Key, Value in Source do
 		if Deep and type(Value) == "table" then
-			Result[Key] = TableUtil.Copy(Value, true)
+			Result[Key] = TableUtil.Copy(Value, true, PreserveMetatable)
 		else
 			Result[Key] = Value
 		end
+	end
+
+	if PreserveMetatable then
+		setmetatable(Result, getmetatable(Source))
 	end
 
 	return Result

@@ -4,7 +4,7 @@ local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local Shared = ReplicatedStorage:WaitForChild("Shared")
 
 local StatConfig = require(Shared.Config.StatConfig)
-local StatTypes = require(Shared.Types.Enums.StatEnums)
+local StatTypes = require(Shared.Enums.StatEnums)
 
 return {
 	Stats = {

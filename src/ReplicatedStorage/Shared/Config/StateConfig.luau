@@ -3,7 +3,7 @@
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local Shared = ReplicatedStorage:WaitForChild("Shared")
 
-local StateEnums = require(Shared.Types.Enums.StateEnums)
+local StateEnums = require(Shared.Enums.StateEnums)
 
 export type StateDefinition = {
 	Default: boolean?,

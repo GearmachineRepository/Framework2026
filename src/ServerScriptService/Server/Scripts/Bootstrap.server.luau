@@ -9,7 +9,7 @@ local Shared = ReplicatedStorage:WaitForChild("Shared")
 
 local Loader = require(Shared.Utils.Loader)
 local Trove = require(Shared.Utils.Trove)
-local HookLoader = require(Server.Game.Utils.HookLoader)
+local HookLoader = require(Server.Game.GameUtils.HookLoader)
 
 HookLoader.Configure(Server.Game.Hooks)
 

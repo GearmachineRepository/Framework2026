@@ -2,7 +2,7 @@
 
 local ServerScriptService = game:GetService("ServerScriptService")
 local Server = ServerScriptService:WaitForChild("Server")
-local HookLoader = require(Server.Game.Utils.HookLoader)
+local HookLoader = require(Server.Game.GameUtils.HookLoader)
 
 local HookComponent = {}
 

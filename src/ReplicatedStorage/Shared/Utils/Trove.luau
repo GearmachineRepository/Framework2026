@@ -196,9 +196,9 @@ end
 	Connects to a signal with `:Once()` and adds to the trove.
 
 	```lua
-	trove:Once(workspace.ChildAdded, function(child)
-		print("First child:", child.Name)
-	end)
+		trove:Once(workspace.ChildAdded, function(child)
+			print("First child:", child.Name)
+		end)
 	```
 ]=]
 function Trove.Once(self: TroveInternal, Signal: RBXScriptSignal, Callback: (...any) -> ()): RBXScriptConnection
@@ -275,13 +275,13 @@ end
 	Removes an object from the trove without cleaning it up.
 
 	```lua
-	local part = trove:Add(Instance.new("Part"))
-	trove:Pop(part)
-	trove:Clean() -- Part is NOT destroyed
+		local part = trove:Add(Instance.new("Part"))
+		trove:Pop(part)
+		trove:Clean() -- Part is NOT destroyed
 	```
 ]=]
 function Trove.Pop(self: TroveInternal, Object: any): boolean
-	if self._Objects[Object] == nil and not rawget(self._Objects, Object) then
+	if self._Objects[Object] == nil then
 		return false
 	end
 

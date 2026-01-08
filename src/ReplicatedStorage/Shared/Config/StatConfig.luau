@@ -3,7 +3,7 @@
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local Shared = ReplicatedStorage:WaitForChild("Shared")
 
-local StatEnums = require(Shared.Types.Enums.StatEnums)
+local StatEnums = require(Shared.Enums.StatEnums)
 
 export type StatDefinition = {
 	Default: number,

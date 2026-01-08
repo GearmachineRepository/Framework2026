@@ -272,51 +272,44 @@ end
 	the specified duration has passed without being called.
 
 	```lua
-	local debouncedSearch = Timer.Debounce(0.5, function(query)
-		search(query)
-	end)
+		local debouncedSearch = Timer.Debounce(0.3, function(query)
+			performSearch(query)
+		end)
 	```
 ]=]
-function Timer.Debounce<A..., R...>(Duration: number, Callback: (A...) -> R...): (A...) -> ()
-	local LastCall = 0
+function Timer.Debounce<Arguments..., Returns...>(Duration: number, Callback: (Arguments...) -> Returns...): (Arguments...) -> ()
+	local ScheduledThread: thread? = nil
 
-	return function(...)
-		local CurrentTime = os.clock()
-
-		if CurrentTime - LastCall >= Duration then
-			LastCall = CurrentTime
-			Callback(...)
+	return function(...: Arguments...)
+		if ScheduledThread then
+			task.cancel(ScheduledThread)
 		end
+
+		ScheduledThread = task.delay(Duration, function(...: Arguments...)
+			ScheduledThread = nil
+			Callback(...)
+		end, ...)
 	end
 end
 
 --[=[
-	Creates a throttled function that executes at most once
-	per duration, queuing the latest call.
+	Creates a throttled function that executes immediately,
+	then ignores calls for the specified duration.
 
 	```lua
-	local throttledUpdate = Timer.Throttle(0.1, function(value)
-		updateUI(value)
-	end)
+		local throttledJump = Timer.Throttle(0.5, function()
+			player:Jump()
+		end)
 	```
 ]=]
 function Timer.Throttle<A..., R...>(Duration: number, Callback: (A...) -> R...): (A...) -> ()
-	local Scheduled = false
-	local LastArgs: { any }? = nil
+	local LastCall = 0
 
 	return function(...)
-		LastArgs = { ... }
-
-		if not Scheduled then
-			Scheduled = true
-
-			task.delay(Duration, function()
-				Scheduled = false
-				if LastArgs then
-					Callback(table.unpack(LastArgs))
-					LastArgs = nil
-				end
-			end)
+		local CurrentTime = os.clock()
+		if CurrentTime - LastCall >= Duration then
+			LastCall = CurrentTime
+			Callback(...)
 		end
 	end
 end
