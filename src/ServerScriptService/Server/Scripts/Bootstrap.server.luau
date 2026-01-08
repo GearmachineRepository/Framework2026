@@ -6,17 +6,18 @@ local ReplicatedStorage = game:GetService("ReplicatedStorage")
 
 local Server = ServerScriptService:WaitForChild("Server")
 local Shared = ReplicatedStorage:WaitForChild("Shared")
+local Packages = require(ReplicatedStorage.Shared.Packages)
+local HookLoader = require(Server.HookUtil.HookLoader)
 
-local Loader = require(Shared.Utils.Loader)
-local Trove = require(Shared.Utils.Trove)
-local HookLoader = require(Server.Game.GameUtils.HookLoader)
+local Loader = Packages.Loader
+local Trove = Packages.Trove
 
-HookLoader.Configure(Server.Game.Hooks)
+HookLoader.Configure(Server.Hooks)
 
 local Ensemble = require(Server.Ensemble)
 
 Ensemble.Init({
-	Components = Server.Game.Components,
+	Components = Server.Components,
 	Archetypes = {
 		Player = { "States", "Stats", "Modifiers", "Hooks", "Damage" },
 		Enemy = { "States", "Stats", "Modifiers", "Damage" },
@@ -24,14 +25,12 @@ Ensemble.Init({
 })
 
 local Services = Loader.LoadChildren(Server.Services)
-
-Loader.CallAll(Services, "Init")
 Loader.SpawnAll(Services, "Start")
 
 local STATE_CONFIG = require(Shared.Config.StateConfig)
 local STAT_CONFIG = require(Shared.Config.StatConfig)
 
-local PlayerTroves: { [Player]: Trove.Trove } = {}
+local PlayerTroves: { [Player]: any } = {}
 
 local function SpawnCharacter(Player: Player, PlayerData: { [string]: any })
 	local Character = Player.Character

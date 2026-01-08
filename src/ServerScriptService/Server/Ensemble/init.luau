@@ -1,7 +1,11 @@
 --!strict
 
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local Shared = ReplicatedStorage:WaitForChild("Shared")
+
+local EventBus = require(Shared.Utils.EventBus)
+
 local Types = require(script.Types)
-local EventBus = require(script.EventBus)
 local Entity = require(script.Core.Entity)
 local EntityBuilder = require(script.Core.EntityBuilder)
 local ComponentLoader = require(script.Core.ComponentLoader)

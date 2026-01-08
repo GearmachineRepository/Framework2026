@@ -2,9 +2,12 @@
 
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local Shared = ReplicatedStorage:WaitForChild("Shared")
-local Packet = require(Shared.Packages.Packet)
 
-local Packets = {
+local Packages = require(Shared.Packages)
+
+local Packet = Packages.Packet
+
+return {
 	StatChanged = Packet(
 		"StatChanged",
 		Packet.String,
@@ -59,5 +62,3 @@ local Packets = {
 		Packet.Any
 	):Response(Packet.Boolean8, Packet.Any),
 }
-
-return Packets

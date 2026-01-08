@@ -10,11 +10,10 @@
       "Shared": {
         "$className": "Folder",
         "$ignoreUnknownInstances": true,
-        "$path": "src/ReplicatedStorage/Shared",
-
-        "Packages": {
-          "$path": "Packages"
-        }
+        "$path": "src/ReplicatedStorage/Shared"
+      },
+      "Packages": {
+        "$path": "Packages"
       }
     },
 

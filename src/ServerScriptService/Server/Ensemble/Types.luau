@@ -1,15 +1,25 @@
 --!strict
 
-local ReplicatedStorage = game:GetService("ReplicatedStorage")
-
-local Signal = require(ReplicatedStorage:WaitForChild("Shared").Utils.Signal)
-
 local Types = {}
 
 Types.EngineName = "[Ensemble]"
 
-export type Connection = Signal.Connection
-export type Signal<T...> = Signal.Signal<T...>
+export type Connection = {
+	Disconnect: (self: Connection) -> (),
+	Destroy: (self: Connection) -> (),
+	Connected: boolean,
+}
+
+export type Signal<T...> = {
+	Fire: (self: Signal<T...>, T...) -> (),
+	FireDeferred: (self: Signal<T...>, T...) -> (),
+	Connect: (self: Signal<T...>, fn: (T...) -> ()) -> Connection,
+	Once: (self: Signal<T...>, fn: (T...) -> ()) -> Connection,
+	DisconnectAll: (self: Signal<T...>) -> (),
+	GetConnections: (self: Signal<T...>) -> { Connection },
+	Destroy: (self: Signal<T...>) -> (),
+	Wait: (self: Signal<T...>) -> T...,
+}
 
 export type StateConfig = {
 	[string]: {
