@@ -8,8 +8,7 @@ local Server = ServerScriptService:WaitForChild("Server")
 local Shared = ReplicatedStorage:WaitForChild("Shared")
 
 local Loader = require(Shared.Utils.Loader)
-local Signal = require(Shared.Utils.Signal)
-local Maid = require(Shared.Utils.Maid)
+local Trove = require(Shared.Utils.Trove)
 local HookLoader = require(Server.Game.Utils.HookLoader)
 
 HookLoader.Configure(Server.Game.Hooks)
@@ -18,7 +17,6 @@ local Ensemble = require(Server.Ensemble)
 
 Ensemble.Init({
 	Components = Server.Game.Components,
-	Signal = Signal.new,
 	Archetypes = {
 		Player = { "States", "Stats", "Modifiers", "Hooks", "Damage" },
 		Enemy = { "States", "Stats", "Modifiers", "Damage" },
@@ -30,22 +28,10 @@ local Services = Loader.LoadChildren(Server.Services)
 Loader.CallAll(Services, "Init")
 Loader.SpawnAll(Services, "Start")
 
-local STATE_CONFIG = {
-	Attacking = { Default = false, Replicate = true, Conflicts = { "Blocking" } },
-	Blocking = { Default = false, Replicate = true, Conflicts = { "Attacking" } },
-	Stunned = { Default = false, Replicate = true },
-	Invulnerable = { Default = false, Replicate = true },
-	InCombat = { Default = false, Replicate = true },
-}
+local STATE_CONFIG = require(Shared.Config.StateConfig)
+local STAT_CONFIG = require(Shared.Config.StatConfig)
 
-local STAT_CONFIG = {
-	Health = { Default = 100, Min = 0, Max = 100, Replicate = true },
-	MaxHealth = { Default = 100, Min = 1, Replicate = true },
-	Stamina = { Default = 100, Min = 0, Max = 100, Replicate = true },
-	MaxStamina = { Default = 100, Min = 1, Replicate = true },
-}
-
-local PlayerMaids: { [Player]: any } = {}
+local PlayerTroves: { [Player]: Trove.Trove } = {}
 
 local function SpawnCharacter(Player: Player, PlayerData: { [string]: any })
 	local Character = Player.Character
@@ -80,18 +66,18 @@ local function SpawnCharacter(Player: Player, PlayerData: { [string]: any })
 end
 
 local function OnPlayerAdded(Player: Player)
-	local PlayerMaid = Maid.new()
-	PlayerMaids[Player] = PlayerMaid
+	local PlayerTrove = Trove.new()
+	PlayerTroves[Player] = PlayerTrove
 
 	local PlayerData = {}
 
-	PlayerMaid:GiveTask(Player.CharacterAdded:Connect(function()
+	PlayerTrove:Connect(Player.CharacterAdded, function()
 		SpawnCharacter(Player, PlayerData)
-	end))
+	end)
 
-	PlayerMaid:GiveTask(Player.CharacterRemoving:Connect(function(Character)
+	PlayerTrove:Connect(Player.CharacterRemoving, function(Character)
 		Ensemble.DestroyEntity(Character)
-	end))
+	end)
 
 	if Player.Character then
 		SpawnCharacter(Player, PlayerData)
@@ -99,10 +85,10 @@ local function OnPlayerAdded(Player: Player)
 end
 
 local function OnPlayerRemoving(Player: Player)
-	local PlayerMaid = PlayerMaids[Player]
-	if PlayerMaid then
-		PlayerMaid:DoCleaning()
-		PlayerMaids[Player] = nil
+	local PlayerTrove = PlayerTroves[Player]
+	if PlayerTrove then
+		PlayerTrove:Destroy()
+		PlayerTroves[Player] = nil
 	end
 
 	local Character = Player.Character

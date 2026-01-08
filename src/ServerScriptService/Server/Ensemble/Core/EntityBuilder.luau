@@ -6,18 +6,19 @@ local Types = require(script.Parent.Parent.Types)
 
 type EntityContext = Types.EntityContext
 type EntityBuilder = Types.EntityBuilder
+type EventBus = Types.EventBus
 type Component = Types.Component
 
 local EntityBuilder = {}
 
 local ActiveArchetypes: { [string]: { string } }? = nil
-local EventBusRef: any = nil
+local EventBusRef: EventBus? = nil
 
 function EntityBuilder.SetArchetypes(Archetypes: { [string]: { string } }?)
 	ActiveArchetypes = Archetypes
 end
 
-function EntityBuilder.SetEventBus(EventBus: any)
+function EntityBuilder.SetEventBus(EventBus: EventBus)
 	EventBusRef = EventBus
 end
 
@@ -123,7 +124,7 @@ function EntityBuilder.Create(Character: Model, Context: EntityContext?): Entity
 		end
 
 		if EventBusRef then
-			EventBusRef.Publish("EntityCreated", {
+			EventBusRef:Publish("EntityCreated", {
 				Entity = NewEntity,
 				Character = NewEntity.Character,
 				IsPlayer = NewEntity.IsPlayer,

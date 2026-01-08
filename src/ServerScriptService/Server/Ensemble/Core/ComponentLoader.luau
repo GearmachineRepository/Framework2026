@@ -158,7 +158,7 @@ end
 
 function ComponentLoader.GetWithUpdates(): { { Name: string, Rate: number } }
 	local Result = {}
-	for Name, Loaded in pairs(LoadedComponents) do
+	for Name, Loaded in LoadedComponents do
 		if Loaded.Definition.UpdateRate then
 			table.insert(Result, {
 				Name = Name,

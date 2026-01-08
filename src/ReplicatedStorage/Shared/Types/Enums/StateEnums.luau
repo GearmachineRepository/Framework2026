@@ -19,7 +19,6 @@ local StateEnums = {
 	GUARD_BROKEN = "Guardbroken",
 	RIPOSTE_WINDOW = "RiposteWindow",
 	DODGING = "Dodging",
-	IFRAME = "Iframe",
 	MODE_ACTIVE = "ModeActive",
 	BLOCK_HIT = "BlockHit",
 	ONHIT = "OnHit",

@@ -5,6 +5,8 @@ local RunService = game:GetService("RunService")
 local Types = require(script.Parent.Parent.Types)
 
 type Entity = Types.Entity
+type EventBus = Types.EventBus
+type Connection = Types.Connection
 
 type EntityUpdateData = {
 	Entity: Entity,
@@ -16,7 +18,9 @@ local UpdateSystem = {}
 local Entities: { [Entity]: EntityUpdateData } = {}
 local UpdateRates: { [string]: number } = {}
 local HeartbeatConnection: RBXScriptConnection? = nil
-local EventBusRef: any = nil
+local EventBusRef: EventBus? = nil
+local EntityCreatedConnection: Connection? = nil
+local EntityDestroyedConnection: Connection? = nil
 
 function UpdateSystem.UpdateEntity(EntityData: EntityUpdateData, DeltaTime: number)
 	local EntityInstance = EntityData.Entity
@@ -51,12 +55,12 @@ function UpdateSystem.UpdateEntity(EntityData: EntityUpdateData, DeltaTime: numb
 end
 
 function UpdateSystem.OnHeartbeat(DeltaTime: number)
-	for _, EntityData in Entities do
+	for _, EntityData in pairs(Entities) do
 		UpdateSystem.UpdateEntity(EntityData, DeltaTime)
 	end
 end
 
-function UpdateSystem.Configure(ComponentLoader: any, EventBus: any)
+function UpdateSystem.Configure(ComponentLoader: any, EventBus: EventBus)
 	EventBusRef = EventBus
 
 	local ComponentsWithUpdates = ComponentLoader.GetWithUpdates()
@@ -71,7 +75,7 @@ function UpdateSystem.Start()
 	end
 
 	if EventBusRef then
-		EventBusRef.Subscribe("EntityCreated", function(EventData: any)
+		EntityCreatedConnection = EventBusRef:Subscribe("EntityCreated", function(EventData: any)
 			local EntityInstance = EventData.Entity
 			if not EntityInstance then
 				return
@@ -83,7 +87,7 @@ function UpdateSystem.Start()
 			}
 		end)
 
-		EventBusRef.Subscribe("EntityDestroyed", function(EventData: any)
+		EntityDestroyedConnection = EventBusRef:Subscribe("EntityDestroyed", function(EventData: any)
 			local EntityInstance = EventData.Entity
 			if not EntityInstance then
 				return
@@ -105,6 +109,16 @@ function UpdateSystem.Stop()
 	if HeartbeatConnection then
 		HeartbeatConnection:Disconnect()
 		HeartbeatConnection = nil
+	end
+
+	if EntityCreatedConnection then
+		EntityCreatedConnection:Disconnect()
+		EntityCreatedConnection = nil
+	end
+
+	if EntityDestroyedConnection then
+		EntityDestroyedConnection:Disconnect()
+		EntityDestroyedConnection = nil
 	end
 
 	table.clear(Entities)

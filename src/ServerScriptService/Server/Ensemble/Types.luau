@@ -1,8 +1,15 @@
 --!strict
 
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+
+local Signal = require(ReplicatedStorage:WaitForChild("Shared").Utils.Signal)
+
 local Types = {}
 
 Types.EngineName = "[Ensemble]"
+
+export type Connection = Signal.Connection
+export type Signal<T...> = Signal.Signal<T...>
 
 export type StateConfig = {
 	[string]: {
@@ -25,7 +32,7 @@ export type StatConfig = {
 export type EntityContext = {
 	Player: Player?,
 	Data: { [string]: any }?,
-	EventBus: any?,
+	EventBus: EventBus?,
 	StateConfig: StateConfig?,
 	StatConfig: StatConfig?,
 }
@@ -67,18 +74,15 @@ export type EntityBuilder = {
 	Build: (self: EntityBuilder) -> Entity,
 }
 
-export type Connection = {
-	Disconnect: (self: Connection) -> (),
-	Connected: boolean,
-}
-
-export type Signal<T...> = {
-	Connect: (self: Signal<T...>, Callback: (T...) -> ()) -> Connection,
-	Once: (self: Signal<T...>, Callback: (T...) -> ()) -> Connection,
-	Fire: (self: Signal<T...>, T...) -> (),
-	Wait: (self: Signal<T...>) -> T...,
-	DisconnectAll: (self: Signal<T...>) -> (),
-	Destroy: (self: Signal<T...>) -> (),
+export type EventBus = {
+	Subscribe: (self: EventBus, EventName: string, Callback: (...any) -> ()) -> Connection,
+	SubscribeOnce: (self: EventBus, EventName: string, Callback: (...any) -> ()) -> Connection,
+	Publish: (self: EventBus, EventName: string, ...any) -> (),
+	Wait: (self: EventBus, EventName: string) -> ...any,
+	Clear: (self: EventBus, EventName: string?) -> (),
+	HasEvent: (self: EventBus, EventName: string) -> boolean,
+	GetEventNames: (self: EventBus) -> { string },
+	Destroy: (self: EventBus) -> (),
 }
 
 return Types

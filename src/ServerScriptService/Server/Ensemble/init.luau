@@ -9,13 +9,13 @@ local UpdateSystem = require(script.Systems.UpdateSystem)
 
 type InitConfig = {
 	Components: Instance,
-	Signal: () -> Types.Signal<any>,
 	Archetypes: { [string]: { string } }?,
 }
 
 local Ensemble = {}
 
 local Initialized = false
+local Events: Types.EventBus = EventBus.new()
 
 function Ensemble.Init(Config: InitConfig)
 	if Initialized then
@@ -26,20 +26,14 @@ function Ensemble.Init(Config: InitConfig)
 		error(Types.EngineName .. " Config.Components is required")
 	end
 
-	if not Config.Signal then
-		error(Types.EngineName .. " Config.Signal is required")
-	end
-
-	EventBus.Configure(Config.Signal)
 	ComponentLoader.Configure(Config.Components)
-
-	EntityBuilder.SetEventBus(EventBus)
+	EntityBuilder.SetEventBus(Events)
 
 	if Config.Archetypes then
 		EntityBuilder.SetArchetypes(Config.Archetypes)
 	end
 
-	UpdateSystem.Configure(ComponentLoader, EventBus)
+	UpdateSystem.Configure(ComponentLoader, Events)
 	UpdateSystem.Start()
 
 	Initialized = true
@@ -67,7 +61,7 @@ end
 function Ensemble.DestroyEntity(Character: Model)
 	local EntityInstance = Entity.Get(Character)
 	if EntityInstance then
-		EventBus.Publish("EntityDestroyed", {
+		Events:Publish("EntityDestroyed", {
 			Entity = EntityInstance,
 			Character = Character,
 		})
@@ -75,7 +69,7 @@ function Ensemble.DestroyEntity(Character: Model)
 	end
 end
 
-Ensemble.Events = EventBus
+Ensemble.Events = Events
 Ensemble.Types = Types
 
 return Ensemble
