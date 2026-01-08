@@ -7,13 +7,14 @@ local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local Server = ServerScriptService:WaitForChild("Server")
 local Shared = ReplicatedStorage:WaitForChild("Shared")
 
-local Ensemble = require(Server.Ensemble)
+local Loader = require(Shared.Utils.Loader)
 local Signal = require(Shared.Utils.Signal)
 local Maid = require(Shared.Utils.Maid)
 local HookLoader = require(Server.Game.Utils.HookLoader)
-local HookComponent = require(Server.Game.Components.HookComponent)
 
 HookLoader.Configure(Server.Game.Hooks)
+
+local Ensemble = require(Server.Ensemble)
 
 Ensemble.Init({
 	Components = Server.Game.Components,
@@ -23,6 +24,11 @@ Ensemble.Init({
 		Enemy = { "States", "Stats", "Modifiers", "Damage" },
 	},
 })
+
+local Services = Loader.LoadChildren(Server.Services)
+
+Loader.CallAll(Services, "Init")
+Loader.SpawnAll(Services, "Start")
 
 local STATE_CONFIG = {
 	Attacking = { Default = false, Replicate = true, Conflicts = { "Blocking" } },
@@ -41,7 +47,7 @@ local STAT_CONFIG = {
 
 local PlayerMaids: { [Player]: any } = {}
 
-local function SpawnCharacter(Player: Player, PlayerData: any)
+local function SpawnCharacter(Player: Player, PlayerData: { [string]: any })
 	local Character = Player.Character
 	if not Character then
 		return
@@ -53,7 +59,7 @@ local function SpawnCharacter(Player: Player, PlayerData: any)
 
 	local Humanoid = Character:WaitForChild("Humanoid", 5) :: Humanoid?
 	if not Humanoid then
-		warn("No Humanoid for", Player.Name)
+		warn("[Bootstrap] No Humanoid for", Player.Name)
 		return
 	end
 
@@ -67,32 +73,32 @@ local function SpawnCharacter(Player: Player, PlayerData: any)
 		:WithArchetype("Player")
 		:Build()
 
-	local Hooks = HookComponent.From(Entity)
+	local Hooks = Entity:GetComponent("Hooks")
 	if Hooks then
 		Hooks.Register("Regeneration")
 	end
 end
 
-Players.PlayerAdded:Connect(function(Player: Player)
+local function OnPlayerAdded(Player: Player)
 	local PlayerMaid = Maid.new()
 	PlayerMaids[Player] = PlayerMaid
 
 	local PlayerData = {}
 
-	Player.CharacterAdded:Connect(function()
+	PlayerMaid:GiveTask(Player.CharacterAdded:Connect(function()
 		SpawnCharacter(Player, PlayerData)
-	end)
+	end))
 
-	Player.CharacterRemoving:Connect(function(Character)
+	PlayerMaid:GiveTask(Player.CharacterRemoving:Connect(function(Character)
 		Ensemble.DestroyEntity(Character)
-	end)
+	end))
 
 	if Player.Character then
 		SpawnCharacter(Player, PlayerData)
 	end
-end)
+end
 
-Players.PlayerRemoving:Connect(function(Player: Player)
+local function OnPlayerRemoving(Player: Player)
 	local PlayerMaid = PlayerMaids[Player]
 	if PlayerMaid then
 		PlayerMaid:DoCleaning()
@@ -103,4 +109,13 @@ Players.PlayerRemoving:Connect(function(Player: Player)
 	if Character then
 		Ensemble.DestroyEntity(Character)
 	end
-end)
+end
+
+for _, Player in Players:GetPlayers() do
+	task.spawn(OnPlayerAdded, Player)
+end
+
+Players.PlayerAdded:Connect(OnPlayerAdded)
+Players.PlayerRemoving:Connect(OnPlayerRemoving)
+
+print("[Server] Bootstrap complete")

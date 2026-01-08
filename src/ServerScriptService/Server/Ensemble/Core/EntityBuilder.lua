@@ -6,6 +6,7 @@ local Types = require(script.Parent.Parent.Types)
 
 type EntityContext = Types.EntityContext
 type EntityBuilder = Types.EntityBuilder
+type Component = Types.Component
 
 local EntityBuilder = {}
 
@@ -69,39 +70,69 @@ function EntityBuilder.Create(Character: Model, Context: EntityContext?): Entity
 		return self
 	end
 
-    function Builder:Build(): Types.Entity
-        local NewEntity = Entity.Create(Character, BuilderContext)
+	function Builder:Build(): Types.Entity
+		local NewEntity = Entity.Create(Character, BuilderContext)
 
-        local ComponentNames = {}
-        for ComponentName in ComponentsToAdd do
-            if not ComponentsToExclude[ComponentName] then
-                table.insert(ComponentNames, ComponentName)
-            end
-        end
+		local ComponentNames = {}
+		for ComponentName in ComponentsToAdd do
+			if not ComponentsToExclude[ComponentName] then
+				table.insert(ComponentNames, ComponentName)
+			end
+		end
 
-        local OrderedComponents = ComponentLoader.ResolveDependencyOrder(ComponentNames)
+		local OrderedComponents = ComponentLoader.ResolveDependencyOrder(ComponentNames)
+		local CreatedComponents: { Component } = {}
 
-        for _, ComponentName in OrderedComponents do
-            local Loaded = ComponentLoader.Get(ComponentName)
-            if not Loaded then
-                continue
-            end
+		for _, ComponentName in OrderedComponents do
+			local Loaded = ComponentLoader.Get(ComponentName)
+			if not Loaded then
+				continue
+			end
 
-            local ComponentInstance = Loaded.Definition.Create(NewEntity, BuilderContext)
-            NewEntity:AddComponent(ComponentName, ComponentInstance)
-        end
+			local ComponentInstance = Loaded.Definition.Create(NewEntity, BuilderContext)
+			NewEntity:AddComponent(ComponentName, ComponentInstance)
+			table.insert(CreatedComponents, ComponentInstance)
+		end
 
-        if EventBusRef then
-            EventBusRef.Publish("EntityCreated", {
-                Entity = NewEntity,
-                Character = NewEntity.Character,
-                IsPlayer = NewEntity.IsPlayer,
-                Player = NewEntity.Player,
-            })
-        end
+		for _, ComponentInstance in CreatedComponents do
+			if ComponentInstance.Init then
+				local Success, ErrorMessage = pcall(function()
+					ComponentInstance.Init()
+					return nil
+				end)
 
-        return NewEntity
-    end
+				if not Success then
+					warn(string.format("%s Component Init failed: %s", Types.EngineName, tostring(ErrorMessage)))
+				end
+			end
+		end
+
+		for _, ComponentInstance in CreatedComponents do
+			if ComponentInstance.Start then
+				task.spawn(function()
+					local Success, ErrorMessage = pcall(function()
+						ComponentInstance.Start()
+						return nil
+					end)
+
+					if not Success then
+						warn(string.format("%s Component Start failed: %s", Types.EngineName, tostring(ErrorMessage)))
+					end
+				end)
+			end
+		end
+
+		if EventBusRef then
+			EventBusRef.Publish("EntityCreated", {
+				Entity = NewEntity,
+				Character = NewEntity.Character,
+				IsPlayer = NewEntity.IsPlayer,
+				Player = NewEntity.Player,
+			})
+		end
+
+		return NewEntity
+	end
 
 	return Builder
 end

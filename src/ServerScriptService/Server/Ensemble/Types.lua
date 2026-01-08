@@ -17,6 +17,7 @@ export type StatConfig = {
 		Default: number,
 		Min: number?,
 		Max: number?,
+		MaxStat: string?,
 		Replicate: boolean?,
 	},
 }
@@ -30,6 +31,8 @@ export type EntityContext = {
 }
 
 export type Component = {
+	Init: (() -> ())?,
+	Start: (() -> ())?,
 	Destroy: () -> (),
 	Update: ((DeltaTime: number) -> ())?,
 	[string]: any,

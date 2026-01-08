@@ -24,6 +24,8 @@ local StatEnums = {
 	RUN_SPEED = "RunSpeed",
 	STRIKING_POWER = "StrikingPower",
 	STRIKE_SPEED = "StrikeSpeed",
+	JUMP_POWER = "JumpPower",
+	STUN_DURATION = "StunDuration"
 }
 
 return StatEnums
