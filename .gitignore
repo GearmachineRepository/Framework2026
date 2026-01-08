@@ -7,3 +7,5 @@
 
 # Packages directory
 /Packages
+
+/sourcemap.json
