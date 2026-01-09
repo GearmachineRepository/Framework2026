@@ -36,3 +36,6 @@ Tree = "sleitnick/tree@1.1.0"
 Trove = "sleitnick/trove@1.8.0"
 TypedRemote = "sleitnick/typed-remote@0.3.0"
 WaitFor = "sleitnick/wait-for@1.0.0"
+
+[server-dependencies]
+ProfileStore = "lm-loleris/profilestore@1.0.3"

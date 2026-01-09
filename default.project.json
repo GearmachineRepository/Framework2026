@@ -20,7 +20,11 @@
     "ServerScriptService": {
       "$className": "ServerScriptService",
       "$ignoreUnknownInstances": true,
-      "$path": "src/ServerScriptService"
+      "$path": "src/ServerScriptService",
+
+      "Packages": {
+        "$path": "ServerPackages"
+      }
     },
 
     "StarterPlayer": {

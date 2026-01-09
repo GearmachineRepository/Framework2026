@@ -17,7 +17,6 @@ DamageComponent.Dependencies = { "States", "Stats", "Modifiers" }
 
 type DamageInstance = {
 	TakeDamage: (Amount: number, Source: Player?, Direction: Vector3?) -> (),
-	DealDamage: (Target: Entity, BaseDamage: number) -> number,
 	IsInvulnerable: () -> boolean,
 	Destroy: () -> (),
 }
@@ -61,29 +60,11 @@ function DamageComponent.Create(Entity: Entity, _Context: EntityContext): Damage
 		end
 	end
 
-	local function DealDamage(Target: Entity, BaseDamage: number): number
-		local FinalDamage = BaseDamage
-
-		if Modifiers then
-			FinalDamage = Modifiers.Apply("DamageDealt", BaseDamage, {
-				Target = Target,
-			})
-		end
-
-		local TargetDamage = DamageComponent.From(Target)
-		if TargetDamage then
-			TargetDamage.TakeDamage(FinalDamage, Entity.Player, nil)
-		end
-
-		return FinalDamage
-	end
-
 	local function Destroy()
 	end
 
 	return {
 		TakeDamage = TakeDamage,
-		DealDamage = DealDamage,
 		IsInvulnerable = IsInvulnerable,
 		Destroy = Destroy,
 	}

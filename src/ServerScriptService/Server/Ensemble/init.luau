@@ -70,6 +70,8 @@ function Ensemble.DestroyEntity(Character: Model)
 			Character = Character,
 		})
 		EntityInstance:Destroy()
+
+		print(string.format("%s Entity Cleared for %s",  Types.EngineName, Character.Name))
 	end
 end
 
