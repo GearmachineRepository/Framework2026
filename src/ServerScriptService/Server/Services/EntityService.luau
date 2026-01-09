@@ -9,10 +9,11 @@ local Packages = require(Shared.Packages)
 
 local Signal = Packages.Signal
 local Ensemble = require(Server.Ensemble)
+local EnsembleTypes = require(Server.Ensemble.Types)
+local Enums = require(Shared.Enums)
 
-local Types = require(Server.Ensemble.Types)
-type Entity = Types.Entity
-type EntityContext = Types.EntityContext
+type Entity = EnsembleTypes.Entity
+type EntityContext = EnsembleTypes.EntityContext
 
 local EntityService = {}
 
@@ -20,11 +21,11 @@ EntityService.EntityCreated = Signal.new()
 EntityService.EntityDestroyed = Signal.new()
 
 function EntityService.Init()
-	Ensemble.Events:Subscribe("EntityCreated", function(Data)
+	Ensemble.Events:Subscribe(Enums.Entity.CREATED, function(Data)
 		EntityService.EntityCreated:Fire(Data.Entity)
 	end)
 
-	Ensemble.Events:Subscribe("EntityDestroyed", function(Data)
+	Ensemble.Events:Subscribe(Enums.Entity.DESTROYED, function(Data)
 		EntityService.EntityDestroyed:Fire(Data.Entity)
 	end)
 end
