@@ -21,11 +21,11 @@ EntityService.EntityCreated = Signal.new()
 EntityService.EntityDestroyed = Signal.new()
 
 function EntityService.Init()
-	Ensemble.Events:Subscribe(Enums.Entity.CREATED, function(Data)
+	Ensemble.Events:Subscribe(Enums.Entity.Created, function(Data)
 		EntityService.EntityCreated:Fire(Data.Entity)
 	end)
 
-	Ensemble.Events:Subscribe(Enums.Entity.DESTROYED, function(Data)
+	Ensemble.Events:Subscribe(Enums.Entity.Destroyed, function(Data)
 		EntityService.EntityDestroyed:Fire(Data.Entity)
 	end)
 end

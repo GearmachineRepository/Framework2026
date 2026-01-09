@@ -24,7 +24,7 @@ local function FireNearby(PacketObj: any, Position: Vector3, Radius: number?, ..
             continue
         end
 
-        local Root = Character:FindFirstChild("HumanoidRootPart")
+        local Root = Character:FindFirstChild("HumanoidRootPart") :: BasePart?
         if not Root then
             continue
         end
