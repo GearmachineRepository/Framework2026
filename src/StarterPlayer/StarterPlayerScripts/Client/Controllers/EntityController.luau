@@ -8,6 +8,7 @@ local Packages = require(Shared.Packages)
 local Packets = require(Shared.Network.Packets)
 
 local Trove = Packages.Trove
+local Signal = Packages.Signal
 
 local EntityController = {}
 
@@ -15,62 +16,99 @@ type Stats = { [string]: number }
 type States = { [string]: boolean }
 
 type EntityData = {
-	Stats: Stats,
-	States: States,
+    Stats: Stats,
+    States: States,
 }
 
 type EntityMap = { [Instance]: EntityData }
 
 local LocalPlayer = Players.LocalPlayer :: Player
 local Entities: EntityMap = {}
-local ControllerTrove = Trove.new()
+local ControllerTrove: typeof(Trove.new()) = nil :: any
 
--- Update all packet events to use strict types when new luau solver resolves this issue.
+EntityController.EntityAdded = Signal.new()
+EntityController.EntityRemoved = Signal.new()
+EntityController.StatChanged = Signal.new()
+EntityController.StateChanged = Signal.new()
+
+function EntityController.Init()
+    ControllerTrove = Trove.new()
+end
 
 function EntityController.Start()
-	ControllerTrove:Add(Packets.EntitySpawned.OnClientEvent:Connect(function(Character, Data)
-		local TypedCharacter = Character :: Instance
-		local TypedData = Data :: { Stats: Stats?, States: States? }
-		Entities[TypedCharacter] = {
-			Stats = TypedData.Stats or {},
-			States = TypedData.States or {},
-		}
-	end))
+    ControllerTrove:Connect(Packets.EntitySpawned.OnClientEvent :: any, function(Character: Instance, Data: { Stats: Stats?, States: States? })
+        local EntityData: EntityData = {
+            Stats = Data.Stats or {},
+            States = Data.States or {},
+        }
+        Entities[Character] = EntityData
+        EntityController.EntityAdded:Fire(Character, EntityData)
+    end)
 
-	ControllerTrove:Add(Packets.EntityDespawned.OnClientEvent:Connect(function(Character)
-		local TypedCharacter = Character :: Instance
-		Entities[TypedCharacter] = nil
-	end))
+    ControllerTrove:Connect(Packets.EntityDespawned.OnClientEvent :: any, function(Character: Instance)
+        local EntityData = Entities[Character]
+        if EntityData then
+            Entities[Character] = nil
+            EntityController.EntityRemoved:Fire(Character, EntityData)
+        end
+    end)
 
-	ControllerTrove:Add(Packets.StatChanged.OnClientEvent:Connect(function(StatName, NewValue, _OldValue)
-		local TypedStatName = StatName :: string
-		local TypedNewValue = NewValue :: number
-		local Character = LocalPlayer.Character
-		if Character and Entities[Character] then
-			Entities[Character].Stats[TypedStatName] = TypedNewValue
-		end
-	end))
+    ControllerTrove:Connect(Packets.StatChanged.OnClientEvent :: any, function(StatName: string, NewValue: number, OldValue: number)
+        local Character = LocalPlayer.Character
+        if Character and Entities[Character] then
+            Entities[Character].Stats[StatName] = NewValue
+            EntityController.StatChanged:Fire(StatName, NewValue, OldValue)
+        end
+    end)
 
-	ControllerTrove:Add(Packets.StateChanged.OnClientEvent:Connect(function(StateName, Value)
-		local TypedStateName = StateName :: string
-		local TypedValue = Value :: boolean
-		local Character = LocalPlayer.Character
-		if Character and Entities[Character] then
-			Entities[Character].States[TypedStateName] = TypedValue
-		end
-	end))
+    ControllerTrove:Connect(Packets.StateChanged.OnClientEvent :: any, function(StateName: string, Value: boolean)
+        local Character = LocalPlayer.Character
+        if Character and Entities[Character] then
+            Entities[Character].States[StateName] = Value
+            EntityController.StateChanged:Fire(StateName, Value)
+        end
+    end)
+
+    ControllerTrove:Connect(LocalPlayer.CharacterRemoving, function(Character: Model)
+        local EntityData = Entities[Character]
+        if EntityData then
+            Entities[Character] = nil
+            EntityController.EntityRemoved:Fire(Character, EntityData)
+        end
+    end)
+end
+
+function EntityController.Stop()
+    ControllerTrove:Destroy()
+    table.clear(Entities)
 end
 
 function EntityController.GetEntity(Character: Instance): EntityData?
-	return Entities[Character]
+    return Entities[Character]
 end
 
 function EntityController.GetLocalEntity(): EntityData?
-	local Character = LocalPlayer.Character
-	if not Character then
-		return nil
-	end
-	return Entities[Character]
+    local Character = LocalPlayer.Character
+    if not Character then
+        return nil
+    end
+    return Entities[Character]
+end
+
+function EntityController.GetStat(StatName: string): number?
+    local EntityData = EntityController.GetLocalEntity()
+    if not EntityData then
+        return nil
+    end
+    return EntityData.Stats[StatName]
+end
+
+function EntityController.GetState(StateName: string): boolean?
+    local EntityData = EntityController.GetLocalEntity()
+    if not EntityData then
+        return nil
+    end
+    return EntityData.States[StateName]
 end
 
 return EntityController

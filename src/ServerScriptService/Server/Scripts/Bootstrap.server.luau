@@ -5,24 +5,24 @@ local ReplicatedStorage = game:GetService("ReplicatedStorage")
 
 local Server = ServerScriptService:WaitForChild("Server")
 local Shared = ReplicatedStorage:WaitForChild("Shared")
-local Packages = require(Shared.Packages)
 
-local Loader = Packages.Loader
+local ServiceLoader = require(Shared.Utils.ServiceLoader)
 local Ensemble = require(Server.Ensemble)
 local HookLoader = require(Server.HookUtil.HookLoader)
 
 HookLoader.Configure(Server.Hooks)
 
 Ensemble.Init({
-	Components = Server.Components,
-	Archetypes = {
-		Player = { "Stats", "States", "Modifiers", "Combat", "Inventory" },
-		Enemy = { "Stats", "States", "Modifiers", "Combat" },
-	},
+    Components = Server.Components,
+    Archetypes = {
+        Player = { "Stats", "States", "Modifiers", "Combat", "Inventory" },
+        Enemy = { "Stats", "States", "Modifiers", "Combat" },
+    },
 })
 
-local Services = Loader.LoadChildren(Server.Services)
-Loader.SpawnAll(Services, "Init")
-Loader.SpawnAll(Services, "Start")
+ServiceLoader.LoadServices(Server.Services)
+ServiceLoader.InitAll()
+ServiceLoader.StartAll()
 
 print("[Server] Bootstrap complete")
+print("[Server] Load order:", table.concat(ServiceLoader.GetLoadOrder(), " -> "))

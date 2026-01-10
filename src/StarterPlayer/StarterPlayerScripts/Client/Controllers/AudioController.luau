@@ -11,33 +11,31 @@ local AudioTypes = require(Shared.Types.AudioTypes)
 
 local Trove = Packages.Trove
 
+local SettingsController = require(script.Parent.SettingsController)
+
 type SoundConfig = AudioTypes.SoundConfig
 type MusicConfig = AudioTypes.MusicConfig
 
 local AudioController = {}
 
-local ControllerTrove = Trove.new()
-local MusicGroup: SoundGroup
-local SfxGroup: SoundGroup
-local CurrentMusic: Sound?
+AudioController.Dependencies = { "SettingsController" }
 
-local SettingsController: any = nil
+local ControllerTrove: typeof(Trove.new()) = nil :: any
+local MusicGroup: SoundGroup = nil :: any
+local SfxGroup: SoundGroup = nil :: any
+local CurrentMusic: Sound? = nil
 
 local function GetSfxVolume(): number
-	if SettingsController then
-		return SettingsController.GetSetting("SfxVolume") :: number
-	end
-	return 1
+	return SettingsController.GetSetting("SfxVolume") :: number
 end
 
 local function GetMusicVolume(): number
-	if SettingsController then
-		return SettingsController.GetSetting("MusicVolume") :: number
-	end
-	return 1
+	return SettingsController.GetSetting("MusicVolume") :: number
 end
 
 function AudioController.Init()
+	ControllerTrove = Trove.new()
+
 	MusicGroup = Instance.new("SoundGroup")
 	MusicGroup.Name = "Music"
 	MusicGroup.Volume = 1
@@ -53,9 +51,6 @@ function AudioController.Init()
 end
 
 function AudioController.Start()
-	local Controllers = script.Parent
-	SettingsController = require(Controllers.SettingsController)
-
 	ControllerTrove:Add(SettingsController.SettingChanged:Connect(function(Key: string, Value: any)
 		if Key == "MusicVolume" then
 			MusicGroup.Volume = Value :: number
@@ -67,87 +62,74 @@ function AudioController.Start()
 	MusicGroup.Volume = GetMusicVolume()
 	SfxGroup.Volume = GetSfxVolume()
 
-	ControllerTrove:Add(Packets.PlaySound.OnClientEvent:Connect(function(SoundId: string, Position: Vector3?, Config: SoundConfig?)
+	ControllerTrove:Connect(Packets.PlaySound.OnClientEvent :: any, function(SoundId: string, Position: Vector3?, Config: SoundConfig?)
 		AudioController.PlaySound(SoundId, Position, Config)
-	end))
+	end)
 
-	ControllerTrove:Add(Packets.PlayMusic.OnClientEvent:Connect(function(SoundId: string, Config: MusicConfig?)
+	ControllerTrove:Connect(Packets.PlayMusic.OnClientEvent :: any, function(SoundId: string, Config: MusicConfig?)
 		AudioController.PlayMusic(SoundId, Config)
-	end))
+	end)
 
-	ControllerTrove:Add(Packets.StopMusic.OnClientEvent:Connect(function(FadeTime: number?)
+	ControllerTrove:Connect(Packets.StopMusic.OnClientEvent :: any, function(FadeTime: number?)
 		AudioController.StopMusic(FadeTime)
-	end))
+	end)
 end
 
-function AudioController.PlaySound(SoundId: string, Position: Vector3?, Config: SoundConfig?): Sound
-	local SoundConfig = Config or AudioTypes.DEFAULT_SOUND_CONFIG
+function AudioController.Stop()
+	ControllerTrove:Destroy()
+end
 
-	local NewSound = Instance.new("Sound")
-	NewSound.SoundId = SoundId
-	NewSound.SoundGroup = SfxGroup
-	NewSound.Volume = SoundConfig.Volume or 1
-	NewSound.PlaybackSpeed = SoundConfig.PlaybackSpeed or 1
-	NewSound.TimePosition = SoundConfig.TimePosition or 0
-	NewSound.Looped = SoundConfig.Looped or false
+function AudioController.PlaySound(SoundId: string, Position: Vector3?, Config: SoundConfig?)
+	local Sound = Instance.new("Sound")
+	Sound.SoundId = SoundId
+	Sound.Volume = (Config and Config.Volume) or 1
+	Sound.PlaybackSpeed = (Config and Config.PlaybackSpeed) or 1
+	Sound.SoundGroup = SfxGroup
 
 	if Position then
-		NewSound.RollOffMode = AudioTypes.GetRollOffMode(SoundConfig.RollOffMode)
-		NewSound.RollOffMinDistance = SoundConfig.RollOffMinDistance or 10
-		NewSound.RollOffMaxDistance = SoundConfig.RollOffMaxDistance or 100
-
 		local Part = Instance.new("Part")
 		Part.Anchored = true
 		Part.CanCollide = false
-		Part.CanQuery = false
-		Part.CanTouch = false
 		Part.Transparency = 1
-		Part.Size = Vector3.one
+		Part.Size = Vector3.new(1, 1, 1)
 		Part.Position = Position
 		Part.Parent = workspace
 
-		NewSound.Parent = Part
+		Sound.Parent = Part
+		Sound:Play()
 
-		NewSound.Ended:Once(function()
+		Sound.Ended:Once(function()
 			Part:Destroy()
 		end)
 	else
-		NewSound.Parent = SoundService
+		Sound.Parent = SoundService
+		Sound:Play()
 
-		NewSound.Ended:Once(function()
-			NewSound:Destroy()
+		Sound.Ended:Once(function()
+			Sound:Destroy()
 		end)
 	end
-
-	NewSound:Play()
-	return NewSound
 end
 
 function AudioController.PlayMusic(SoundId: string, Config: MusicConfig?)
-	local MusicConfig = Config or AudioTypes.DEFAULT_MUSIC_CONFIG
-	local FadeTime = MusicConfig.FadeTime or 1
-
 	if CurrentMusic then
-		local OldMusic = CurrentMusic
-		TweenService:Create(OldMusic, TweenInfo.new(FadeTime), { Volume = 0 }):Play()
-		task.delay(FadeTime, function()
-			OldMusic:Destroy()
-		end)
+		AudioController.StopMusic(0.5)
 	end
 
-	local NewMusic = Instance.new("Sound")
-	NewMusic.SoundId = SoundId
-	NewMusic.SoundGroup = MusicGroup
-	NewMusic.Looped = if MusicConfig.Looped ~= nil then MusicConfig.Looped else true
-	NewMusic.Volume = 0
-	NewMusic.PlaybackSpeed = MusicConfig.PlaybackSpeed or 1
-	NewMusic.Parent = SoundService
+	local Sound = Instance.new("Sound")
+	Sound.SoundId = SoundId
+	Sound.Volume = 0
+	Sound.Looped = (Config and Config.Looped) or true
+	Sound.SoundGroup = MusicGroup
+	Sound.Parent = SoundService
 
-	CurrentMusic = NewMusic
-	NewMusic:Play()
+	CurrentMusic = Sound
+	Sound:Play()
 
-	local TargetVolume = MusicConfig.Volume or 1
-	TweenService:Create(NewMusic, TweenInfo.new(FadeTime), { Volume = TargetVolume }):Play()
+	local TargetVolume = (Config and Config.Volume) or 1
+	local FadeIn = (Config and Config.FadeTime) or 1
+
+	TweenService:Create(Sound, TweenInfo.new(FadeIn), { Volume = TargetVolume }):Play()
 end
 
 function AudioController.StopMusic(FadeTime: number?)

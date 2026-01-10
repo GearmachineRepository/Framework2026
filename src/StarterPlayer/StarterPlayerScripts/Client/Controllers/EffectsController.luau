@@ -11,215 +11,187 @@ local ObjectPool = require(Shared.Utils.ObjectPool)
 local Trove = Packages.Trove
 local Signal = Packages.Signal
 
+local SettingsController = require(script.Parent.SettingsController)
+
 export type EffectConfig = {
-	Scale: number?,
-	Duration: number?,
-	Color: Color3?,
-	Direction: Vector3?,
-	QualityMultiplier: number?,
-	[string]: any,
+    Scale: number?,
+    Duration: number?,
+    Color: Color3?,
+    Direction: Vector3?,
+    QualityMultiplier: number?,
+    [string]: any,
 }
 
 export type PoolConfig = ObjectPool.PoolConfig<Instance>
 
 export type EffectDefinition = {
-	Create: ((Position: Vector3, Config: EffectConfig) -> Instance?)?,
-	Configure: ((Object: Instance, Position: Vector3, Config: EffectConfig) -> ())?,
-	Duration: number?,
-	PoolConfig: PoolConfig?,
+    Create: ((Position: Vector3, Config: EffectConfig) -> Instance?)?,
+    Configure: ((Object: Instance, Position: Vector3, Config: EffectConfig) -> ())?,
+    Duration: number?,
+    PoolConfig: PoolConfig?,
 }
 
 type EffectPool = ObjectPool.ObjectPool<Instance>
 
 local EffectsController = {}
 
-local ControllerTrove: typeof(Trove.new()) = Trove.new()
+EffectsController.Dependencies = { "SettingsController" }
+
+local ControllerTrove: typeof(Trove.new()) = nil :: any
 local LocalPlayer = Players.LocalPlayer :: Player
 local RegisteredEffects: { [string]: EffectDefinition } = {}
 local EffectPools: { [string]: EffectPool } = {}
-local SettingsController: any = nil
 
 EffectsController.EffectSpawned = Signal.new()
 
 local function GetVfxQuality(): number
-	if SettingsController then
-		return SettingsController.GetSetting("VfxQuality") :: number
-	end
-	return 1
+    return SettingsController.GetSetting("VfxQuality") :: number
 end
 
 local function GetVfxRenderDistance(): number
-	if SettingsController then
-		local Value = SettingsController.GetSetting("VfxRenderDistance") :: number
-		return Value * 200
-	end
-	return 200
+    local Value = SettingsController.GetSetting("VfxRenderDistance") :: number
+    return Value * 200
 end
 
 local function GetPlayerPosition(): Vector3?
-	local Character = LocalPlayer.Character
-	if not Character then
-		return nil
-	end
+    local Character = LocalPlayer.Character
+    if not Character then
+        return nil
+    end
 
-	local Root = Character:FindFirstChild("HumanoidRootPart") :: BasePart?
-	if not Root then
-		return nil
-	end
-
-	return Root.Position
+    local Root = Character:FindFirstChild("HumanoidRootPart") :: BasePart?
+    return if Root then Root.Position else nil
 end
 
 local function IsWithinRenderDistance(Position: Vector3): boolean
-	local PlayerPosition = GetPlayerPosition()
-	if not PlayerPosition then
-		return true
-	end
+    local PlayerPosition = GetPlayerPosition()
+    if not PlayerPosition then
+        return false
+    end
 
-	local MaxDistance = GetVfxRenderDistance()
-	return (Position - PlayerPosition).Magnitude <= MaxDistance
+    local Distance = (Position - PlayerPosition).Magnitude
+    return Distance <= GetVfxRenderDistance()
 end
 
 local function BuildEffectConfig(Config: EffectConfig?, QualityMultiplier: number): EffectConfig
-	local Result: EffectConfig = {
-		QualityMultiplier = QualityMultiplier,
-	}
-
-	if Config then
-		for Key, Value in Config do
-			Result[Key] = Value
-		end
-		Result.QualityMultiplier = QualityMultiplier
-	end
-
-	return Result
+    local BaseConfig = Config or {} :: EffectConfig
+    return {
+        Scale = (BaseConfig.Scale or 1) * QualityMultiplier,
+        Duration = BaseConfig.Duration,
+        Color = BaseConfig.Color,
+        Direction = BaseConfig.Direction,
+        QualityMultiplier = QualityMultiplier,
+    }
 end
 
 function EffectsController.Init()
-	local Client = LocalPlayer.PlayerScripts:WaitForChild("Client")
-	local Effects = Client:WaitForChild("Effects")
-	local Definitions = require(Effects.EffectDefinitions) :: { [string]: EffectDefinition }
-
-	for EffectName, Definition in Definitions do
-		EffectsController.RegisterEffect(EffectName, Definition)
-	end
+    ControllerTrove = Trove.new()
 end
 
 function EffectsController.Start()
-	local Controllers = script.Parent
-	SettingsController = require(Controllers.SettingsController)
+    ControllerTrove:Connect(Packets.SpawnEffect.OnClientEvent :: any, function(EffectName: string, Position: Vector3, Config: EffectConfig?)
+        EffectsController.SpawnEffect(EffectName, Position, Config)
+    end)
+end
 
-	ControllerTrove:Add(Packets.SpawnEffect.OnClientEvent:Connect(function(EffectName: unknown, Position: unknown, Config: unknown)
-		if typeof(EffectName) ~= "string" then
-			return
-		end
+function EffectsController.Stop()
+    for EffectName, Pool in EffectPools do
+        Pool:Destroy()
+        EffectPools[EffectName] = nil
+    end
 
-		if typeof(Position) ~= "Vector3" then
-			return
-		end
-
-		local TypedConfig: EffectConfig? = nil
-		if typeof(Config) == "table" then
-			TypedConfig = Config :: EffectConfig
-		end
-
-		EffectsController.SpawnEffect(EffectName, Position, TypedConfig)
-	end))
+    table.clear(RegisteredEffects)
+    ControllerTrove:Destroy()
 end
 
 function EffectsController.RegisterEffect(EffectName: string, Definition: EffectDefinition)
-	if Definition.PoolConfig and not Definition.Configure then
-		warn(string.format("[EffectsController] Effect '%s' has PoolConfig but no Configure function", EffectName))
-		return
-	end
+    if RegisteredEffects[EffectName] then
+        warn(string.format("[EffectsController] Effect already registered: %s", EffectName))
+        return
+    end
 
-	if not Definition.Create and not Definition.Configure then
-		warn(string.format("[EffectsController] Effect '%s' must have Create or Configure function", EffectName))
-		return
-	end
+    RegisteredEffects[EffectName] = Definition
 
-	RegisteredEffects[EffectName] = Definition
-
-	if Definition.PoolConfig then
-		EffectPools[EffectName] = ObjectPool.new(Definition.PoolConfig)
-	end
+    if Definition.PoolConfig then
+        EffectPools[EffectName] = ObjectPool.new(Definition.PoolConfig)
+    end
 end
 
 function EffectsController.UnregisterEffect(EffectName: string)
-	RegisteredEffects[EffectName] = nil
+    RegisteredEffects[EffectName] = nil
 
-	local Pool = EffectPools[EffectName]
-	if Pool then
-		Pool:Destroy()
-		EffectPools[EffectName] = nil
-	end
+    local Pool = EffectPools[EffectName]
+    if Pool then
+        Pool:Destroy()
+        EffectPools[EffectName] = nil
+    end
 end
 
 function EffectsController.SpawnEffect(EffectName: string, Position: Vector3, Config: EffectConfig?): Instance?
-	if not IsWithinRenderDistance(Position) then
-		return nil
-	end
+    if not IsWithinRenderDistance(Position) then
+        return nil
+    end
 
-	local Definition = RegisteredEffects[EffectName]
-	if not Definition then
-		warn(string.format("[EffectsController] Unknown effect: %s", EffectName))
-		return nil
-	end
+    local Definition = RegisteredEffects[EffectName]
+    if not Definition then
+        warn(string.format("[EffectsController] Unknown effect: %s", EffectName))
+        return nil
+    end
 
-	local QualityMultiplier = GetVfxQuality()
-	local AdjustedConfig = BuildEffectConfig(Config, QualityMultiplier)
-	local Duration = (Config and Config.Duration) or Definition.Duration or 2
+    local QualityMultiplier = GetVfxQuality()
+    local AdjustedConfig = BuildEffectConfig(Config, QualityMultiplier)
+    local Duration = (Config and Config.Duration) or Definition.Duration or 2
 
-	local EffectInstance: Instance?
-	local Pool = EffectPools[EffectName]
+    local EffectInstance: Instance?
+    local Pool = EffectPools[EffectName]
 
-	if Pool and Definition.Configure then
-		local PooledObject = Pool:Get()
-		Definition.Configure(PooledObject, Position, AdjustedConfig)
-		PooledObject.Parent = workspace
-		EffectInstance = PooledObject
+    if Pool and Definition.Configure then
+        local PooledObject = Pool:Get()
+        Definition.Configure(PooledObject, Position, AdjustedConfig)
+        PooledObject.Parent = workspace
+        EffectInstance = PooledObject
 
-		EffectsController.EffectSpawned:Fire(EffectName, PooledObject, Position)
+        EffectsController.EffectSpawned:Fire(EffectName, PooledObject, Position)
 
-		task.delay(Duration, function()
-			Pool:Return(PooledObject)
-		end)
-	elseif Definition.Create then
-		EffectInstance = Definition.Create(Position, AdjustedConfig)
+        task.delay(Duration, function()
+            Pool:Return(PooledObject)
+        end)
+    elseif Definition.Create then
+        EffectInstance = Definition.Create(Position, AdjustedConfig)
 
-		if EffectInstance then
-			EffectsController.EffectSpawned:Fire(EffectName, EffectInstance, Position)
+        if EffectInstance then
+            EffectsController.EffectSpawned:Fire(EffectName, EffectInstance, Position)
 
-			task.delay(Duration, function()
-				if EffectInstance and EffectInstance.Parent then
-					EffectInstance:Destroy()
-				end
-			end)
-		end
-	end
+            task.delay(Duration, function()
+                if EffectInstance and EffectInstance.Parent then
+                    EffectInstance:Destroy()
+                end
+            end)
+        end
+    end
 
-	return EffectInstance
+    return EffectInstance
 end
 
 function EffectsController.GetPool(EffectName: string): EffectPool?
-	return EffectPools[EffectName]
+    return EffectPools[EffectName]
 end
 
 function EffectsController.HasEffect(EffectName: string): boolean
-	return RegisteredEffects[EffectName] ~= nil
+    return RegisteredEffects[EffectName] ~= nil
 end
 
 function EffectsController.GetQualityMultiplier(): number
-	return GetVfxQuality()
+    return GetVfxQuality()
 end
 
 function EffectsController.ApplyQualityToCount(BaseCount: number): number
-	local Multiplier = GetVfxQuality()
-	return math.max(1, math.floor(BaseCount * Multiplier))
+    local Multiplier = GetVfxQuality()
+    return math.max(1, math.floor(BaseCount * Multiplier))
 end
 
 function EffectsController.IsWithinRenderDistance(Position: Vector3): boolean
-	return IsWithinRenderDistance(Position)
+    return IsWithinRenderDistance(Position)
 end
 
 return EffectsController

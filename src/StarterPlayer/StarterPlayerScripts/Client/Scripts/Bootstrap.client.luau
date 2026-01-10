@@ -4,14 +4,13 @@ local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local Players = game:GetService("Players")
 
 local Shared = ReplicatedStorage:WaitForChild("Shared")
-local Packages = require(Shared.Packages)
 local Client = Players.LocalPlayer.PlayerScripts:WaitForChild("Client")
 
-local Loader = Packages.Loader
+local ServiceLoader = require(Shared.Utils.ServiceLoader)
 
-local Controllers = Loader.LoadChildren(Client.Controllers)
-
-Loader.SpawnAll(Controllers, "Init")
-Loader.SpawnAll(Controllers, "Start")
+ServiceLoader.LoadServices(Client.Controllers)
+ServiceLoader.InitAll()
+ServiceLoader.StartAll()
 
 print("[Client] Bootstrap complete")
+print("[Client] Load order:", table.concat(ServiceLoader.GetLoadOrder(), " -> "))
