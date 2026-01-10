@@ -4,8 +4,15 @@ local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local SoundService = game:GetService("SoundService")
 local TweenService = game:GetService("TweenService")
 
-local Packages = require(ReplicatedStorage.Shared.Packages)
+local Shared = ReplicatedStorage:WaitForChild("Shared")
+local Packages = require(Shared.Packages)
+local Packets = require(Shared.Network.Packets)
+local AudioTypes = require(Shared.Types.AudioTypes)
+
 local Trove = Packages.Trove
+
+type SoundConfig = AudioTypes.SoundConfig
+type MusicConfig = AudioTypes.MusicConfig
 
 local AudioController = {}
 
@@ -14,102 +21,164 @@ local MusicGroup: SoundGroup
 local SfxGroup: SoundGroup
 local CurrentMusic: Sound?
 
-local Volumes = {
-    Music = 1,
-    Sfx = 1,
-}
+local SettingsController: any = nil
+
+local function GetSfxVolume(): number
+	if SettingsController then
+		return SettingsController.GetSetting("SfxVolume") :: number
+	end
+	return 1
+end
+
+local function GetMusicVolume(): number
+	if SettingsController then
+		return SettingsController.GetSetting("MusicVolume") :: number
+	end
+	return 1
+end
 
 function AudioController.Init()
-    MusicGroup = Instance.new("SoundGroup")
-    MusicGroup.Name = "Music"
-    MusicGroup.Volume = Volumes.Music
-    MusicGroup.Parent = SoundService
+	MusicGroup = Instance.new("SoundGroup")
+	MusicGroup.Name = "Music"
+	MusicGroup.Volume = 1
+	MusicGroup.Parent = SoundService
 
-    SfxGroup = Instance.new("SoundGroup")
-    SfxGroup.Name = "Sfx"
-    SfxGroup.Volume = Volumes.Sfx
-    SfxGroup.Parent = SoundService
+	SfxGroup = Instance.new("SoundGroup")
+	SfxGroup.Name = "Sfx"
+	SfxGroup.Volume = 1
+	SfxGroup.Parent = SoundService
 
-    ControllerTrove:Add(MusicGroup)
-    ControllerTrove:Add(SfxGroup)
+	ControllerTrove:Add(MusicGroup)
+	ControllerTrove:Add(SfxGroup)
 end
 
 function AudioController.Start()
+	local Controllers = script.Parent
+	SettingsController = require(Controllers.SettingsController)
+
+	ControllerTrove:Add(SettingsController.SettingChanged:Connect(function(Key: string, Value: any)
+		if Key == "MusicVolume" then
+			MusicGroup.Volume = Value :: number
+		elseif Key == "SfxVolume" then
+			SfxGroup.Volume = Value :: number
+		end
+	end))
+
+	MusicGroup.Volume = GetMusicVolume()
+	SfxGroup.Volume = GetSfxVolume()
+
+	ControllerTrove:Add(Packets.PlaySound.OnClientEvent:Connect(function(SoundId: string, Position: Vector3?, Config: SoundConfig?)
+		AudioController.PlaySound(SoundId, Position, Config)
+	end))
+
+	ControllerTrove:Add(Packets.PlayMusic.OnClientEvent:Connect(function(SoundId: string, Config: MusicConfig?)
+		AudioController.PlayMusic(SoundId, Config)
+	end))
+
+	ControllerTrove:Add(Packets.StopMusic.OnClientEvent:Connect(function(FadeTime: number?)
+		AudioController.StopMusic(FadeTime)
+	end))
 end
 
-function AudioController.PlaySound(SoundId: string, Position: Vector3?): Sound
-    local Sound = Instance.new("Sound")
-    Sound.SoundId = SoundId
-    Sound.SoundGroup = SfxGroup
+function AudioController.PlaySound(SoundId: string, Position: Vector3?, Config: SoundConfig?): Sound
+	local SoundConfig = Config or AudioTypes.DEFAULT_SOUND_CONFIG
 
-    if Position then
-        local Part = Instance.new("Part")
-        Part.Anchored = true
-        Part.CanCollide = false
-        Part.Transparency = 1
-        Part.Size = Vector3.one
-        Part.Position = Position
-        Part.Parent = workspace
-        Sound.Parent = Part
-        Sound.Ended:Once(function()
-            Part:Destroy()
-        end)
-    else
-        Sound.Parent = SoundService
-        Sound.Ended:Once(function()
-            Sound:Destroy()
-        end)
-    end
+	local NewSound = Instance.new("Sound")
+	NewSound.SoundId = SoundId
+	NewSound.SoundGroup = SfxGroup
+	NewSound.Volume = SoundConfig.Volume or 1
+	NewSound.PlaybackSpeed = SoundConfig.PlaybackSpeed or 1
+	NewSound.TimePosition = SoundConfig.TimePosition or 0
+	NewSound.Looped = SoundConfig.Looped or false
 
-    Sound:Play()
-    return Sound
+	if Position then
+		NewSound.RollOffMode = AudioTypes.GetRollOffMode(SoundConfig.RollOffMode)
+		NewSound.RollOffMinDistance = SoundConfig.RollOffMinDistance or 10
+		NewSound.RollOffMaxDistance = SoundConfig.RollOffMaxDistance or 100
+
+		local Part = Instance.new("Part")
+		Part.Anchored = true
+		Part.CanCollide = false
+		Part.CanQuery = false
+		Part.CanTouch = false
+		Part.Transparency = 1
+		Part.Size = Vector3.one
+		Part.Position = Position
+		Part.Parent = workspace
+
+		NewSound.Parent = Part
+
+		NewSound.Ended:Once(function()
+			Part:Destroy()
+		end)
+	else
+		NewSound.Parent = SoundService
+
+		NewSound.Ended:Once(function()
+			NewSound:Destroy()
+		end)
+	end
+
+	NewSound:Play()
+	return NewSound
 end
 
-function AudioController.PlayMusic(SoundId: string, FadeTime: number?)
-    local Fade = FadeTime or 1
+function AudioController.PlayMusic(SoundId: string, Config: MusicConfig?)
+	local MusicConfig = Config or AudioTypes.DEFAULT_MUSIC_CONFIG
+	local FadeTime = MusicConfig.FadeTime or 1
 
-    if CurrentMusic then
-        local OldMusic = CurrentMusic
-        TweenService:Create(OldMusic, TweenInfo.new(Fade), { Volume = 0 }):Play()
-        task.delay(Fade, function()
-            OldMusic:Destroy()
-        end)
-    end
+	if CurrentMusic then
+		local OldMusic = CurrentMusic
+		TweenService:Create(OldMusic, TweenInfo.new(FadeTime), { Volume = 0 }):Play()
+		task.delay(FadeTime, function()
+			OldMusic:Destroy()
+		end)
+	end
 
-    local NewMusic = Instance.new("Sound")
-    NewMusic.SoundId = SoundId
-    NewMusic.SoundGroup = MusicGroup
-    NewMusic.Looped = true
-    NewMusic.Volume = 0
-    NewMusic.Parent = SoundService
+	local NewMusic = Instance.new("Sound")
+	NewMusic.SoundId = SoundId
+	NewMusic.SoundGroup = MusicGroup
+	NewMusic.Looped = if MusicConfig.Looped ~= nil then MusicConfig.Looped else true
+	NewMusic.Volume = 0
+	NewMusic.PlaybackSpeed = MusicConfig.PlaybackSpeed or 1
+	NewMusic.Parent = SoundService
 
-    CurrentMusic = NewMusic
-    NewMusic:Play()
-    TweenService:Create(NewMusic, TweenInfo.new(Fade), { Volume = 1 }):Play()
+	CurrentMusic = NewMusic
+	NewMusic:Play()
+
+	local TargetVolume = MusicConfig.Volume or 1
+	TweenService:Create(NewMusic, TweenInfo.new(FadeTime), { Volume = TargetVolume }):Play()
 end
 
 function AudioController.StopMusic(FadeTime: number?)
-    if not CurrentMusic then
-        return
-    end
+	if not CurrentMusic then
+		return
+	end
 
-    local Fade = FadeTime or 1
-    local Music = CurrentMusic
-    CurrentMusic = nil
+	local Fade = FadeTime or 1
+	local Music = CurrentMusic
+	CurrentMusic = nil
 
-    TweenService:Create(Music, TweenInfo.new(Fade), { Volume = 0 }):Play()
-    task.delay(Fade, function()
-        Music:Destroy()
-    end)
+	TweenService:Create(Music, TweenInfo.new(Fade), { Volume = 0 }):Play()
+	task.delay(Fade, function()
+		Music:Destroy()
+	end)
 end
 
-function AudioController.SetVolume(Category: "Music" | "Sfx", Volume: number)
-    Volumes[Category] = Volume
-    if Category == "Music" then
-        MusicGroup.Volume = Volume
-    else
-        SfxGroup.Volume = Volume
-    end
+function AudioController.SetMusicVolume(Volume: number)
+	MusicGroup.Volume = math.clamp(Volume, 0, 1)
+end
+
+function AudioController.SetSfxVolume(Volume: number)
+	SfxGroup.Volume = math.clamp(Volume, 0, 1)
+end
+
+function AudioController.GetMusicGroup(): SoundGroup
+	return MusicGroup
+end
+
+function AudioController.GetSfxGroup(): SoundGroup
+	return SfxGroup
 end
 
 return AudioController

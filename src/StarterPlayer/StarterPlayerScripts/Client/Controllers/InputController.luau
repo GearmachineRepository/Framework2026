@@ -104,9 +104,6 @@ local function FireActionsForInput(InputType: Enum.KeyCode | Enum.UserInputType,
     end
 end
 
-function InputController.Init()
-end
-
 function InputController.Start()
     ControllerTrove = Trove.new()
     KeyboardInput = ControllerTrove:Add(Input.Keyboard.new() :: any) :: Keyboard

@@ -11,7 +11,6 @@ local Loader = Packages.Loader
 
 local Controllers = Loader.LoadChildren(Client.Controllers)
 
-
 Loader.SpawnAll(Controllers, "Init")
 Loader.SpawnAll(Controllers, "Start")
 
